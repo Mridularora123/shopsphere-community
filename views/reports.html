@@ -1,0 +1,11 @@
+<% layout('layout') -%>
+<h3>Reports</h3>
+<div style="margin-top:12px;">
+  <% items.forEach(function(r){ %>
+    <div class="community-card">
+      <div class="community-meta"><%= new Date(r.createdAt).toLocaleString() %></div>
+      <div><strong><%= r.targetType %></strong> — reason: <%= r.reason %></div>
+      <form method="post" action="/admin/reports/<%= r._id %>/resolve"><button class="community-btn">Resolve</button></form>
+    </div>
+  <% }) %>
+</div>

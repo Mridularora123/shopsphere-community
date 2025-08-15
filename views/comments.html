@@ -1,0 +1,19 @@
+<% layout('layout') -%>
+<h3>Comments (<%= status %>)</h3>
+<form method="get" action="">
+  <select name="status" onchange="this.form.submit()">
+    <option value="pending" <%= status==='pending'?'selected':'' %>>pending</option>
+    <option value="approved" <%= status==='approved'?'selected':'' %>>approved</option>
+    <option value="rejected" <%= status==='rejected'?'selected':'' %>>rejected</option>
+  </select>
+</form>
+<div style="margin-top:10px;">
+  <% items.forEach(function(c){ %>
+    <div class="community-card">
+      <div class="community-meta"><%= new Date(c.createdAt).toLocaleString() %></div>
+      <div><%= c.body %></div>
+      <form method="post" action="/admin/comments/<%= c._id %>/approve" style="display:inline;"><button class="community-btn">Approve</button></form>
+      <form method="post" action="/admin/comments/<%= c._id %>/reject" style="display:inline;"><button class="community-btn">Reject</button></form>
+    </div>
+  <% }) %>
+</div>

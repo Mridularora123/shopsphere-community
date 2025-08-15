@@ -1,0 +1,17 @@
+<% layout('layout') -%>
+<h3>Categories</h3>
+<form method="post" action="/admin/categories/create" class="community-card">
+  <input name="shop" placeholder="shop (your-store.myshopify.com)" class="community-input" required />
+  <input name="name" placeholder="Name" class="community-input" required />
+  <input name="slug" placeholder="Slug" class="community-input" required />
+  <input name="order" type="number" placeholder="Order" class="community-input" />
+  <button class="community-btn" type="submit">Add</button>
+</form>
+<div style="margin-top:12px;">
+  <% items.forEach(function(f){ %>
+    <div class="community-card">
+      <div><strong><%= f.name %></strong> <span class="community-meta">/ <%= f.slug %></span></div>
+      <form method="post" action="/admin/categories/<%= f._id %>/delete"><button class="community-btn">Delete</button></form>
+    </div>
+  <% }) %>
+</div>

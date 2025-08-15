@@ -1,0 +1,33 @@
+<% layout('layout') -%>
+<h3>Threads (<%= status %>)</h3>
+<form method="get" action="">
+  <select name="status" onchange="this.form.submit()">
+    <option value="pending" <%= status==='pending'?'selected':'' %>>pending</option>
+    <option value="approved" <%= status==='approved'?'selected':'' %>>approved</option>
+    <option value="rejected" <%= status==='rejected'?'selected':'' %>>rejected</option>
+  </select>
+</form>
+<div style="margin-top:10px;">
+  <% items.forEach(function(t){ %>
+    <div class="community-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div><strong><%= t.title %></strong> <%= t.pinned ? '<span class="badge">Pinned</span>' : '' %> <%= t.closed ? '<span class="badge">Closed</span>' : '' %></div>
+        <div class="community-meta"><%= new Date(t.createdAt).toLocaleString() %></div>
+      </div>
+      <div><%= t.body %></div>
+      <div style="margin:6px 0;">Votes: <%= t.votes %> • Comments: <%= t.commentsCount %></div>
+      <form method="post" action="/admin/threads/<%= t._id %>/approve" style="display:inline;"><button class="community-btn">Approve</button></form>
+      <form method="post" action="/admin/threads/<%= t._id %>/reject" style="display:inline;"><button class="community-btn">Reject</button></form>
+      <% if (t.pinned) { %>
+        <form method="post" action="/admin/threads/<%= t._id %>/unpin" style="display:inline;"><button class="community-btn">Unpin</button></form>
+      <% } else { %>
+        <form method="post" action="/admin/threads/<%= t._id %>/pin" style="display:inline;"><button class="community-btn">Pin</button></form>
+      <% } %>
+      <% if (t.closed) { %>
+        <form method="post" action="/admin/threads/<%= t._id %>/reopen" style="display:inline;"><button class="community-btn">Reopen</button></form>
+      <% } else { %>
+        <form method="post" action="/admin/threads/<%= t._id %>/close" style="display:inline;"><button class="community-btn">Close</button></form>
+      <% } %>
+    </div>
+  <% }) %>
+</div>

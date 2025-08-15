@@ -1,0 +1,11 @@
+:root { --muted:#f3f4f6; --border:#e5e7eb; --text:#111827; }
+body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial; color:var(--text); }
+.community-box { border: 1px solid var(--border); padding: 12px; border-radius: 10px; }
+.community-row { display:flex; gap:10px; align-items:flex-start; margin:10px 0; }
+.community-btn { padding:8px 12px; border:1px solid var(--border); border-radius:8px; cursor:pointer; background:#fff; }
+.community-input, .community-textarea, select { width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; }
+.community-tag { background:var(--muted); padding:2px 8px; border-radius:999px; font-size:12px; margin-right:6px; display:inline-block;}
+.community-meta { color:#6b7280; font-size:12px; }
+.community-card { border:1px solid var(--border); padding:12px; border-radius:10px; margin-bottom:10px; }
+.badge { font-size:12px; background:var(--muted); padding:2px 6px; border-radius:6px; margin-left:6px; }
+.vote { cursor:pointer; user-select:none; }
