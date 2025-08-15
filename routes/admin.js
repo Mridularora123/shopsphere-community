@@ -99,13 +99,26 @@ router.get('/polls', async (req,res)=>{
   const items = await Poll.find({}).sort({ createdAt:-1 }).lean();
   res.render('polls', { items });
 });
-router.post('/polls/create', async (req,res)=>{
+router.post('/polls/create', async (req, res) => {
   const { shop, threadId, question, options } = req.body || {};
-  const parsed = (options||'').split('
-').map(s=>s.trim()).filter(Boolean).map((t,i)=>({ id:String(i+1), text:t }));
-  await Poll.create({ shop, threadId, question: (question||'').slice(0,160), options: parsed });
+
+  // Split by actual newlines safely (Windows, Mac, Linux)
+  const parsed = (options || '')
+    .split(/\r?\n/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map((t, i) => ({ id: String(i + 1), text: t }));
+
+  await Poll.create({
+    shop,
+    threadId,
+    question: (question || '').slice(0, 160),
+    options: parsed
+  });
+
   res.redirect('back');
 });
+
 router.post('/polls/:id/close', async (req,res)=>{
   await Poll.findByIdAndUpdate(req.params.id, { status:'closed' });
   res.redirect('back');
