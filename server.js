@@ -1,4 +1,4 @@
-// server.js (embedded-ready)
+// server.js
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
@@ -26,16 +26,16 @@ mongoose
   .then(() => console.log('Mongo connected'))
   .catch((err) => console.error('Mongo error', err));
 
-/* ----------------------- Security / middlewares ----------------------- */
+/* ------------------------ Security & middlewares ---------------------- */
 // Allow Shopify Admin to iframe this app
 app.use(
   helmet({
-    contentSecurityPolicy: false, // we’ll set a minimal CSP next
+    contentSecurityPolicy: false, // set our own CSP next
     frameguard: false,            // remove X-Frame-Options
   })
 );
 
-// Minimal CSP: let Shopify admin frame us and load scripts/styles
+// Minimal CSP for embedded apps
 app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
@@ -57,24 +57,19 @@ app.use(cors({ origin: false }));
 // Rate limit
 app.use(rateLimit({ windowMs: 60 * 1000, max: 200 }));
 
-/* ------------------------------ Static -------------------------------- */
+/* -------------------------------- Static ------------------------------ */
 app.use(express.static(path.join(__dirname, 'public')));
 
-/* ------------------------------ Views --------------------------------- */
+/* -------------------------------- Views ------------------------------- */
 app.set('views', path.join(__dirname, 'views'));
 const ejs = (await import('ejs')).default;
 app.engine('html', ejs.renderFile);
 app.set('view engine', 'html');
 
-/* ------------------------------ Health -------------------------------- */
+/* ------------------------------- Health ------------------------------- */
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-/* ---------------------- Embedded landing route (/) -------------------- */
-/**
- * Shopify opens your app tile as:
- *   /?shop={shop}&host={host}&embedded=1
- * We serve public/embedded.html and inject SHOPIFY_API_KEY for App Bridge.
- */
+/* ---------------------- Embedded root (serves HTML) ------------------- */
 app.get('/', (req, res) => {
   const file = path.join(__dirname, 'public', 'embedded.html');
   let html = fs.readFileSync(file, 'utf8');
@@ -82,13 +77,18 @@ app.get('/', (req, res) => {
   res.type('html').send(html);
 });
 
-/* ------------------------------- Routes -------------------------------- */
-app.use('/auth', authRoutes);   // OAuth install/callback
-app.use('/proxy', proxyRoutes); // App Proxy (storefront)
+/* -------------------------------- Routes ------------------------------ */
+app.use('/auth', authRoutes);   // OAuth
+app.use('/proxy', proxyRoutes); // App Proxy endpoints
 app.use('/admin', adminRoutes); // Moderation UI
 
-/* -------------------------------- 404 --------------------------------- */
+/* ---------------------------- 404 + Errors ---------------------------- */
 app.use((req, res) => res.status(404).json({ success: false, message: 'Not found' }));
 
-/* ------------------------------ Server -------------------------------- */
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).send('Internal Server Error');
+});
+
+/* ------------------------------ Listen ------------------------------- */
 app.listen(PORT, () => console.log('Server on', PORT));
