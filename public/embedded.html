@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ShopSphere Community</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:0}
+    .wrap{max-width:980px;margin:24px auto;padding:0 16px}
+    a.button{display:inline-block;padding:10px 14px;border:1px solid #ccc;border-radius:8px;text-decoration:none}
+  </style>
+  <!-- App Bridge (v3) -->
+  <script src="https://unpkg.com/@shopify/app-bridge@3"></script>
+  <script src="https://unpkg.com/@shopify/app-bridge-utils@3"></script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>ShopSphere Community</h1>
+    <p>Moderate threads, comments, polls and reports.</p>
+    <p><a class="button" href="/admin" target="_self">Open Admin</a></p>
+  </div>
+
+  <script>
+    // Initialize App Bridge (embed-safe)
+    (function () {
+      const params = new URLSearchParams(location.search);
+      const host = params.get('host');
+      const shop = params.get('shop');
+      if (!host) {
+        // If Shopify didn't pass host, bounce to OAuth to get proper params
+        location.href = `/auth?shop=${encodeURIComponent(shop || '')}`;
+        return;
+      }
+      const app = window['app-bridge'].createApp({
+        apiKey: '{{SHOPIFY_API_KEY}}',  // server will inject value
+        host
+      });
+
+      // Optional: set the title in Admin
+      const { TitleBar } = window['app-bridge'].actions;
+      TitleBar.create(app, { title: 'ShopSphere Community' });
+    })();
+  </script>
+</body>
+</html>
