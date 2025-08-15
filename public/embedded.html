@@ -21,25 +21,32 @@
   </div>
 
   <script>
-    // Initialize App Bridge (embed-safe)
-    (function () {
-      const params = new URLSearchParams(location.search);
-      const host = params.get('host');
-      const shop = params.get('shop');
-      if (!host) {
-        // If Shopify didn't pass host, bounce to OAuth to get proper params
-        location.href = `/auth?shop=${encodeURIComponent(shop || '')}`;
+  (function () {
+    const params = new URLSearchParams(location.search);
+    const host = params.get('host');
+    const shop = params.get('shop');
+    const embedded = params.get('embedded');
+
+    // Only redirect to OAuth if we're in the embedded flow AND we know the shop
+    if (!host) {
+      const isInIframe = (window.top !== window.self);
+      if ((embedded === '1' || isInIframe) && shop) {
+        location.href = `/auth?shop=${encodeURIComponent(shop)}`;
         return;
       }
-      const app = window['app-bridge'].createApp({
-        apiKey: '{{SHOPIFY_API_KEY}}',  // server will inject value
-        host
-      });
+      // Not embedded (you opened the Render URL directly) → don't redirect
+      // Just render the page normally without App Bridge init.
+      return;
+    }
 
-      // Optional: set the title in Admin
-      const { TitleBar } = window['app-bridge'].actions;
-      TitleBar.create(app, { title: 'ShopSphere Community' });
-    })();
-  </script>
+    const app = window['app-bridge'].createApp({
+      apiKey: '{{SHOPIFY_API_KEY}}',
+      host
+    });
+    const { TitleBar } = window['app-bridge'].actions;
+    TitleBar.create(app, { title: 'ShopSphere Community' });
+  })();
+</script>
+
 </body>
 </html>
