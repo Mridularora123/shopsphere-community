@@ -1,128 +1,281 @@
-(function(){
-  function ensureMember(){
-    if (!window.Shopify || !window.Shopify.customer) return false;
-    return true;
+// /public/forum-widget.js
+(function () {
+  // ---------- Config / Helpers ----------
+  var TIMEOUT_MS = 10000;
+
+  function qs(s, r) { return (r || document).querySelector(s); }
+  function qsa(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+  function escapeHtml(s) {
+    return (s || '').replace(/[&<>"']/g, function (m) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m];
+    });
   }
-  function msg(el, text){ el.textContent = text; setTimeout(()=>el.textContent='', 3000); }
-  function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
-  async function api(path, opts={}){
-    const res = await fetch(`${window.__FORUM_PROXY__}${path}`, {
+  function setMsg(el, text, isError) {
+    el.textContent = text || '';
+    el.style.color = isError ? '#b00020' : '#666';
+    if (text) setTimeout(function () { el.textContent = ''; }, 3500);
+  }
+  function loading(el, on) {
+    if (!el) return;
+    el.innerHTML = on
+      ? '<div class="community-meta">Loading…</div>'
+      : '';
+  }
+  function isDesignMode() {
+    // Theme editor preview (sandboxed) – don’t try to load cross-origin files there.
+    try { return !!(window.Shopify && Shopify.designMode); } catch (_) { return false; }
+  }
+  function hasCustomer() {
+    try { return !!(window.Shopify && Shopify.customer && Shopify.customer.id); } catch (_) { return false; }
+  }
+  // basic timeout wrapper for fetch
+  function withTimeout(promise, ms) {
+    var t;
+    var timeout = new Promise(function (_, rej) {
+      t = setTimeout(function () { rej(new Error('Request timed out')); }, ms || TIMEOUT_MS);
+    });
+    return Promise.race([promise, timeout]).finally(function () { clearTimeout(t); });
+  }
+
+  // ---------- API ----------
+  function api(path, opts) {
+    opts = opts || {};
+    var url = (window.__FORUM_PROXY__ || '/apps/community') + path;
+    return withTimeout(fetch(url, {
       method: opts.method || 'GET',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: opts.body ? JSON.stringify(opts.body) : undefined
+    })).then(function (r) {
+      // For app proxy, Shopify returns 401 when signature mismatch
+      if (!r.ok) {
+        var err = new Error('API error: ' + r.status);
+        err.status = r.status;
+        throw err;
+      }
+      return r.json();
     });
-    return res.json();
   }
-  function template(root){
-    root.innerHTML = `
-      <div class="community-box">
-        <div class="community-row">
-          <select id="cat-filter"></select>
-          <input id="thread-title" class="community-input" placeholder="Start a new thread (title)" />
-        </div>
-        <textarea id="thread-body" class="community-textarea" rows="3" placeholder="Write details..."></textarea>
-        <div class="community-row">
-          <input id="thread-tags" class="community-input" placeholder="tags (comma separated)" />
-          <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="thread-anon"/> <span class="community-meta">Anonymous</span></label>
-          <button id="thread-submit" class="community-btn">Post</button>
-        </div>
-        <div id="t-msg" class="community-meta"></div>
-        <hr/>
-        <div id="threads"></div>
-      </div>
-    `;
+
+  function pingProxy() {
+    // You can keep this route in your proxy router: router.get('/ping', (req,res)=>res.json({ok:true}))
+    return api('/ping').then(
+      function (j) { return { ok: true, json: j }; },
+      function (e) { return { ok: false, error: e }; }
+    );
   }
-  async function loadCategories(sel){
-    const data = await api('/categories');
-    const opts = ['<option value="">All categories</option>'].concat(
-      (data.items||[]).map(c=>`<option value="${c._id}">${escapeHtml(c.name)}</option>`)
-    ).join('');
-    sel.innerHTML = opts;
+
+  // ---------- UI ----------
+  function template(root) {
+    root.innerHTML = [
+      '<div class="community-box">',
+      '  <div id="t-msg" class="community-meta" style="min-height:18px;margin-bottom:6px"></div>',
+      '  <div class="community-row">',
+      '    <select id="cat-filter"></select>',
+      '    <input id="thread-title" class="community-input" placeholder="Start a new thread (title)" />',
+      '  </div>',
+      '  <textarea id="thread-body" class="community-textarea" rows="3" placeholder="Write details..."></textarea>',
+      '  <div class="community-row">',
+      '    <input id="thread-tags" class="community-input" placeholder="tags (comma separated)" />',
+      '    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="thread-anon"/> <span class="community-meta">Anonymous</span></label>',
+      '    <button id="thread-submit" class="community-btn">Post</button>',
+      '  </div>',
+      '  <hr/>',
+      '  <div id="threads"></div>',
+      '</div>'
+    ].join('\n');
   }
-  async function loadThreads(container){
-    const cat = document.querySelector('#cat-filter').value;
-    const q = cat ? `?categoryId=${encodeURIComponent(cat)}` : '';
-    const data = await api('/threads'+q);
-    container.innerHTML = (data.items||[]).map(t=>`
-      <div class="community-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div><strong>${escapeHtml(t.title)}</strong> ${t.pinned?'<span class="badge">Pinned</span>':''} ${t.closed?'<span class="badge">Closed</span>':''}</div>
-          <div class="vote" data-type="thread" data-id="${t._id}">▲ ${t.votes||0}</div>
-        </div>
-        <div class="community-meta">${new Date(t.createdAt).toLocaleString()}</div>
-        <div>${escapeHtml(t.body||'')}</div>
-        <div style="margin:6px 0;">${(t.tags||[]).map(x=>`<span class="community-tag">${escapeHtml(x)}</span>`).join('')}</div>
-        <div id="comments-${t._id}"></div>
-        <div class="community-row">
-          <input data-tid="${t._id}" class="community-input comment-input" placeholder="Write a comment..." />
-          <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="${t._id}"/><span class="community-meta">Anonymous</span></label>
-          <button data-tid="${t._id}" class="community-btn comment-btn">Reply</button>
-          <button data-tid="${t._id}" class="community-btn report-btn" title="Report">Report</button>
-        </div>
-      </div>
-    `).join('');
+
+  function renderThreads(container, items) {
+    container.innerHTML = (items || []).map(function (t) {
+      return [
+        '<div class="community-card">',
+        '  <div style="display:flex;justify-content:space-between;align-items:center">',
+        '    <div><strong>' + escapeHtml(t.title) + '</strong> ' +
+        (t.pinned ? '<span class="badge">Pinned</span>' : '') + ' ' +
+        (t.closed ? '<span class="badge">Closed</span>' : '') + '</div>',
+        '    <button class="vote" data-id="' + t._id + '" title="Upvote" style="cursor:pointer;background:none;border:none">▲ ' + (t.votes || 0) + '</button>',
+        '  </div>',
+        '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
+        '  <div>' + escapeHtml(t.body || '') + '</div>',
+        '  <div style="margin:6px 0;">' + (t.tags || []).map(function (x) {
+          return '<span class="community-tag">' + escapeHtml(x) + '</span>';
+        }).join('') + '</div>',
+        '  <div id="comments-' + t._id + '"></div>',
+        '  <div class="community-row">',
+        '    <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..." />',
+        '    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="' + t._id + '"/><span class="community-meta">Anonymous</span></label>',
+        '    <button data-tid="' + t._id + '" class="community-btn comment-btn">Reply</button>',
+        '    <button data-tid="' + t._id + '" class="community-btn report-btn" title="Report">Report</button>',
+        '  </div>',
+        '</div>'
+      ].join('');
+    }).join('');
+  }
+
+  function wireThreadActions(container, tMsg) {
     // votes
-    container.querySelectorAll('.vote').forEach(el=>{
-      el.addEventListener('click', async ()=>{
-        if (!ensureMember()) return alert('Please login to participate.');
-        const id = el.getAttribute('data-id');
-        const out = await api('/votes', { method:'POST', body:{ targetType:'thread', targetId:id, customer_id: window.Shopify.customer.id } });
-        if(out.success){ const n = parseInt(el.textContent.replace(/\D/g,'')) + 1; el.textContent = '▲ ' + n; }
-        else alert(out.message||'Vote failed');
+    qsa('.vote', container).forEach(function (el) {
+      var lock = false;
+      el.addEventListener('click', function () {
+        if (lock) return;
+        if (!hasCustomer()) return alert('Please log in to participate.');
+        lock = true;
+        var id = el.getAttribute('data-id');
+        api('/votes', {
+          method: 'POST',
+          body: { targetType: 'thread', targetId: id, customer_id: Shopify.customer.id }
+        }).then(function (out) {
+          if (out && out.success) {
+            var n = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10) + 1;
+            el.textContent = '▲ ' + n;
+          } else {
+            alert((out && out.message) || 'Vote failed');
+          }
+        }).catch(function (e) {
+          alert('Vote failed: ' + e.message);
+        }).finally(function () { lock = false; });
       });
     });
+
     // comments
-    container.querySelectorAll('.comment-btn').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
-        if (!ensureMember()) return alert('Please login to participate.');
-        const tid = btn.getAttribute('data-tid');
-        const input = container.querySelector(`.comment-input[data-tid="${tid}"]`);
-        const anon = container.querySelector(`.comment-anon[data-tid="${tid}"]`).checked;
-        if (!input.value.trim()) return;
-        const out = await api('/comments', { method:'POST', body:{ threadId: tid, body: input.value, isAnonymous: anon, customer_id: window.Shopify.customer.id } });
-        input.value='';
-        alert(out.message || (out.success ? 'Submitted for review' : 'Failed'));
+    qsa('.comment-btn', container).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!hasCustomer()) return alert('Please log in to participate.');
+        var tid = btn.getAttribute('data-tid');
+        var input = qs('.comment-input[data-tid="' + tid + '"]', container);
+        var anon = qs('.comment-anon[data-tid="' + tid + '"]', container).checked;
+        if (!input || !input.value.trim()) return;
+        api('/comments', {
+          method: 'POST',
+          body: { threadId: tid, body: input.value, isAnonymous: anon, customer_id: Shopify.customer.id }
+        }).then(function (out) {
+          input.value = '';
+          alert((out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
+        }).catch(function (e) { alert('Failed: ' + e.message); });
       });
     });
+
     // report
-    container.querySelectorAll('.report-btn').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
-        if (!ensureMember()) return alert('Please login to participate.');
-        const tid = btn.getAttribute('data-tid');
-        const reason = prompt('Why are you reporting this?');
-        if(!reason) return;
-        const out = await api('/reports', { method:'POST', body:{ targetType:'thread', targetId: tid, reason, customer_id: window.Shopify.customer.id } });
-        alert(out.success ? 'Reported' : 'Failed');
+    qsa('.report-btn', container).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!hasCustomer()) return alert('Please log in to participate.');
+        var tid = btn.getAttribute('data-tid');
+        var reason = prompt('Why are you reporting this?');
+        if (!reason) return;
+        api('/reports', {
+          method: 'POST',
+          body: { targetType: 'thread', targetId: tid, reason: reason, customer_id: Shopify.customer.id }
+        }).then(function (out) {
+          alert(out && out.success ? 'Reported' : 'Failed');
+        }).catch(function (e) { alert('Failed: ' + e.message); });
       });
     });
   }
 
+  function loadCategories(sel, tMsg) {
+    return api('/categories').then(function (data) {
+      var opts = ['<option value="">All categories</option>'].concat(
+        (data.items || []).map(function (c) {
+          return '<option value="' + c._id + '">' + escapeHtml(c.name) + '</option>';
+        })
+      ).join('');
+      sel.innerHTML = opts;
+    }).catch(function (e) {
+      setMsg(tMsg, 'Could not load categories: ' + e.message, true);
+    });
+  }
+
+  function loadThreads(container, tMsg) {
+    var cat = qs('#cat-filter').value;
+    var q = cat ? ('?categoryId=' + encodeURIComponent(cat)) : '';
+    loading(container, true);
+    return api('/threads' + q).then(function (data) {
+      renderThreads(container, data.items || []);
+      wireThreadActions(container, tMsg);
+    }).catch(function (e) {
+      container.innerHTML = '';
+      setMsg(tMsg, 'Could not load threads: ' + e.message, true);
+    });
+  }
+
+  // ---------- PUBLIC MOUNT ----------
   window.ForumWidget = {
-    mount(selector, opts={}){
-      const root = document.querySelector(selector);
+    mount: function (selector, opts) {
+      opts = opts || {};
+      var root = qs(selector);
       if (!root) return;
-      window.__FORUM_PROXY__ = opts.proxyUrl || '/apps/community';
-      template(root);
-      const member = ensureMember();
-      if (!member){
-        root.innerHTML = '<div class="community-box">Please <a href="/account/login">log in</a> to view and participate in the community.</div>';
+
+      // Theme Editor guard (sandboxed)
+      if (isDesignMode()) {
+        root.innerHTML =
+          '<div class="community-box">Community widget preview is unavailable in the Theme Editor. ' +
+          'Open the storefront (View store) to test.</div>';
         return;
       }
-      const catSel = root.querySelector('#cat-filter');
-      const threadsEl = root.querySelector('#threads');
-      loadCategories(catSel).then(()=> loadThreads(threadsEl));
-      catSel.addEventListener('change', ()=> loadThreads(threadsEl));
-      root.querySelector('#thread-submit').addEventListener('click', async ()=>{
-        const title = root.querySelector('#thread-title').value.trim();
-        if (!title) return msg(root.querySelector('#t-msg'), 'Title required');
-        const body = root.querySelector('#thread-body').value.trim();
-        const tags = root.querySelector('#thread-tags').value.split(',').map(s=>s.trim()).filter(Boolean);
-        const anon = root.querySelector('#thread-anon').checked;
-        const categoryId = catSel.value || null;
-        const out = await api('/threads', { method:'POST', body:{ title, body, tags, isAnonymous: anon, categoryId, customer_id: window.Shopify.customer.id } });
-        msg(root.querySelector('#t-msg'), out.message || (out.success ? 'Submitted for review' : 'Failed'));
-        root.querySelector('#thread-title').value=''; root.querySelector('#thread-body').value=''; root.querySelector('#thread-tags').value='';
-        loadThreads(threadsEl);
+
+      // Proxy base
+      window.__FORUM_PROXY__ = opts.proxyUrl || '/apps/community';
+
+      // Basic UI
+      template(root);
+      var tMsg = qs('#t-msg', root);
+      var sel = qs('#cat-filter', root);
+      var list = qs('#threads', root);
+
+      // Login gating (view-only vs. login prompt)
+      if (!hasCustomer()) {
+        root.innerHTML =
+          '<div class="community-box">Please <a href="/account/login">log in</a> to view and participate in the community.</div>';
+        return;
+      }
+
+      // Health check – helps diagnose proxy misconfig quickly
+      pingProxy().then(function (res) {
+        if (!res.ok) {
+          var status = (res.error && res.error.status) || 'unknown';
+          setMsg(tMsg, 'App proxy not reachable (status ' + status + '). Check your App Proxy + secret.', true);
+          return;
+        }
+
+        // Load data
+        loadCategories(sel, tMsg).then(function () {
+          return loadThreads(list, tMsg);
+        });
+
+        sel.addEventListener('change', function () { loadThreads(list, tMsg); });
+
+        // Create thread
+        qs('#thread-submit', root).addEventListener('click', function () {
+          var title = (qs('#thread-title', root).value || '').trim();
+          if (!title) return setMsg(tMsg, 'Title required', true);
+
+          var body = (qs('#thread-body', root).value || '').trim();
+          var tags = (qs('#thread-tags', root).value || '')
+            .split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+          var anon = !!qs('#thread-anon', root).checked;
+          var categoryId = sel.value || null;
+
+          api('/threads', {
+            method: 'POST',
+            body: {
+              title: title,
+              body: body,
+              tags: tags,
+              isAnonymous: anon,
+              categoryId: categoryId,
+              customer_id: Shopify.customer.id
+            }
+          }).then(function (out) {
+            setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'), !out || !out.success);
+            qs('#thread-title', root).value = '';
+            qs('#thread-body', root).value = '';
+            qs('#thread-tags', root).value = '';
+            loadThreads(list, tMsg);
+          }).catch(function (e) {
+            setMsg(tMsg, 'Failed: ' + e.message, true);
+          });
+        });
       });
     }
   };

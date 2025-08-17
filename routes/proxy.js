@@ -124,4 +124,6 @@ router.post('/polls/:threadId/vote', async (req,res)=>{
   res.json({ success:true });
 });
 
+router.get('/ping', (req, res) => res.json({ ok: true }));
+
 export default router;
