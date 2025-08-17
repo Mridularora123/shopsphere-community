@@ -1,4 +1,3 @@
-// server.js
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
@@ -30,7 +29,7 @@ mongoose
 // Allow Shopify Admin to iframe this app
 app.use(
   helmet({
-    contentSecurityPolicy: false, // set our own CSP next
+    contentSecurityPolicy: false, // we’ll set our own CSP
     frameguard: false,            // remove X-Frame-Options
   })
 );
@@ -52,13 +51,31 @@ app.use((req, res, next) => {
 app.use(compression());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: false }));
+app.use(cors({ origin: '*' })); // allow embedding from Shopify
 
 // Rate limit
 app.use(rateLimit({ windowMs: 60 * 1000, max: 200 }));
 
-/* -------------------------------- Static ------------------------------ */
-app.use(express.static(path.join(__dirname, 'public')));
+/* ---------------------- Static assets with CORS/CORP ------------------ */
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    setHeaders(res, filePath) {
+      // Required so Shopify storefront can embed scripts/styles cross-origin
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+
+      if (filePath.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      }
+      if (filePath.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+      }
+
+      // Cache for performance
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    },
+  })
+);
 
 /* -------------------------------- Views ------------------------------- */
 app.set('views', path.join(__dirname, 'views'));
