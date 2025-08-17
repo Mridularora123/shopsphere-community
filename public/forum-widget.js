@@ -1,9 +1,7 @@
-/* /public/forum-widget.js */
+// /public/forum-widget.js
 (function () {
-  // ---------- Config ----------
   var TIMEOUT_MS = 10000;
 
-  // ---------- Small helpers ----------
   function qs(s, r) { return (r || document).querySelector(s); }
   function qsa(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
   function escapeHtml(s) {
@@ -14,7 +12,32 @@
   function setMsg(el, text, isError) {
     el.textContent = text || '';
     el.style.color = isError ? '#b00020' : '#666';
+    if (text) setTimeout(function () { el.textContent = ''; }, 3500);
   }
+  function loading(el, on) {
+    if (!el) return;
+    el.innerHTML = on ? '<div class="community-meta">Loading…</div>' : '';
+  }
+  function isDesignMode() {
+    try { return !!(window.Shopify && Shopify.designMode); } catch (_) { return false; }
+  }
+
+  // ---- CUSTOMER DETECTION (robust) ----
+  function getCustomer() {
+    // Prefer the Liquid-injected object
+    if (window.__FORUM_CUSTOMER__ && window.__FORUM_CUSTOMER__.id) return window.__FORUM_CUSTOMER__;
+    // Fallback if theme exposes Shopify.customer
+    try {
+      if (window.Shopify && Shopify.customer && Shopify.customer.id) return Shopify.customer;
+    } catch (_) {}
+    return null;
+  }
+  function getCustomerId() {
+    var c = getCustomer();
+    return c && c.id ? c.id : null;
+  }
+
+  // Timeout wrapper
   function withTimeout(promise, ms) {
     var t;
     var timeout = new Promise(function (_, rej) {
@@ -22,23 +45,8 @@
     });
     return Promise.race([promise, timeout]).finally(function () { clearTimeout(t); });
   }
-  function isDesignMode() {
-    try { return !!(window.Shopify && Shopify.designMode); } catch (_) { return false; }
-  }
 
-  // ---------- Customer detection (reliable) ----------
-  function getCustomer() {
-    if (window.__FORUM_CUSTOMER__ && window.__FORUM_CUSTOMER__.id) {
-      return window.__FORUM_CUSTOMER__;
-    }
-    if (window.Shopify && Shopify.customer && Shopify.customer.id) {
-      return Shopify.customer;
-    }
-    return null;
-  }
-  function isLoggedIn() { return !!(getCustomer() && getCustomer().id); }
-
-  // ---------- API ----------
+  // API helpers
   function api(path, opts) {
     opts = opts || {};
     var url = (window.__FORUM_PROXY__ || '/apps/community') + path;
@@ -56,13 +64,17 @@
       return r.json();
     });
   }
-  function pingProxy() { return api('/ping').then(function (j) { return { ok: true, json: j }; }, function (e) { return { ok: false, error: e }; }); }
+  function pingProxy() {
+    return api('/ping').then(
+      function (j) { return { ok: true, json: j }; },
+      function (e) { return { ok: false, error: e }; }
+    );
+  }
 
-  // ---------- UI template ----------
+  // UI
   function template(root) {
     root.innerHTML = [
       '<div class="community-box">',
-      '  <div id="login-banner" class="community-meta" style="margin:0 0 8px 0"></div>',
       '  <div id="t-msg" class="community-meta" style="min-height:18px;margin-bottom:6px"></div>',
       '  <div class="community-row">',
       '    <select id="cat-filter"></select>',
@@ -80,28 +92,15 @@
     ].join('\n');
   }
 
-  function lockGuestUI(root, loggedIn) {
-    var banner = qs('#login-banner', root);
-    if (!loggedIn) {
-      banner.innerHTML = 'Please <a href="/account/login">log in</a> to participate. You can still browse threads.';
-      qsa('#thread-title, #thread-body, #thread-tags, #thread-anon, #thread-submit', root)
-        .forEach(function (el) { if (el) el.disabled = true; });
-    } else {
-      banner.innerHTML = '';
-      qsa('#thread-title, #thread-body, #thread-tags, #thread-anon, #thread-submit', root)
-        .forEach(function (el) { if (el) el.disabled = false; });
-    }
-  }
-
-  function renderThreads(container, items, loggedIn) {
+  function renderThreads(container, items) {
     container.innerHTML = (items || []).map(function (t) {
       return [
         '<div class="community-card">',
         '  <div style="display:flex;justify-content:space-between;align-items:center">',
         '    <div><strong>' + escapeHtml(t.title) + '</strong> ' +
-        (t.pinned ? '<span class="badge">Pinned</span>' : '') + ' ' +
-        (t.closed ? '<span class="badge">Closed</span>' : '') + '</div>',
-        '    <button class="vote" data-id="' + t._id + '" ' + (loggedIn ? '' : 'disabled') + ' title="Upvote" style="cursor:pointer;background:none;border:none">▲ ' + (t.votes || 0) + '</button>',
+          (t.pinned ? '<span class="badge">Pinned</span>' : '') + ' ' +
+          (t.closed ? '<span class="badge">Closed</span>' : '') + '</div>',
+        '    <button class="vote" data-id="' + t._id + '" title="Upvote" style="cursor:pointer;background:none;border:none">▲ ' + (t.votes || 0) + '</button>',
         '  </div>',
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
         '  <div>' + escapeHtml(t.body || '') + '</div>',
@@ -110,79 +109,75 @@
         }).join('') + '</div>',
         '  <div id="comments-' + t._id + '"></div>',
         '  <div class="community-row">',
-        '    <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..." ' + (loggedIn ? '' : 'disabled') + ' />',
-        '    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="' + t._id + '" ' + (loggedIn ? '' : 'disabled') + '/><span class="community-meta">Anonymous</span></label>',
-        '    <button data-tid="' + t._id + '" class="community-btn comment-btn" ' + (loggedIn ? '' : 'disabled') + '>Reply</button>',
-        '    <button data-tid="' + t._id + '" class="community-btn report-btn" ' + (loggedIn ? '' : 'disabled') + ' title="Report">Report</button>',
+        '    <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..." />',
+        '    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="' + t._id + '"/><span class="community-meta">Anonymous</span></label>',
+        '    <button data-tid="' + t._id + '" class="community-btn comment-btn">Reply</button>',
+        '    <button data-tid="' + t._id + '" class="community-btn report-btn" title="Report">Report</button>',
         '  </div>',
         '</div>'
       ].join('');
     }).join('');
   }
 
-  function wireThreadActions(container, tMsg, loggedIn) {
-    // Votes
+  function wireThreadActions(container) {
+    // Vote
     qsa('.vote', container).forEach(function (el) {
-      if (!loggedIn) return;
       var lock = false;
       el.addEventListener('click', function () {
         if (lock) return;
+        var cid = getCustomerId();
+        if (!cid) return alert('Please log in to participate.');
         lock = true;
         var id = el.getAttribute('data-id');
-        var c = getCustomer();
         api('/votes', {
           method: 'POST',
-          body: { targetType: 'thread', targetId: id, customer_id: c.id }
+          body: { targetType: 'thread', targetId: id, customer_id: cid }
         }).then(function (out) {
           if (out && out.success) {
             var n = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10) + 1;
             el.textContent = '▲ ' + n;
           } else {
-            setMsg(tMsg, (out && out.message) || 'Vote failed', true);
+            alert((out && out.message) || 'Vote failed');
           }
         }).catch(function (e) {
-          setMsg(tMsg, 'Vote failed: ' + e.message, true);
+          alert('Vote failed: ' + e.message);
         }).finally(function () { lock = false; });
       });
     });
 
-    // Comments
+    // Comment
     qsa('.comment-btn', container).forEach(function (btn) {
-      if (!loggedIn) return;
       btn.addEventListener('click', function () {
+        var cid = getCustomerId();
+        if (!cid) return alert('Please log in to participate.');
         var tid = btn.getAttribute('data-tid');
         var input = qs('.comment-input[data-tid="' + tid + '"]', container);
         var anon = qs('.comment-anon[data-tid="' + tid + '"]', container).checked;
         if (!input || !input.value.trim()) return;
-        var c = getCustomer();
         api('/comments', {
           method: 'POST',
-          body: { threadId: tid, body: input.value, isAnonymous: anon, customer_id: c.id }
+          body: { threadId: tid, body: input.value, isAnonymous: anon, customer_id: cid }
         }).then(function (out) {
           input.value = '';
-          setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'), !(out && out.success));
-        }).catch(function (e) {
-          setMsg(tMsg, 'Failed: ' + e.message, true);
-        });
+          alert((out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
+        }).catch(function (e) { alert('Failed: ' + e.message); });
       });
     });
 
-    // Reports
+    // Report
     qsa('.report-btn', container).forEach(function (btn) {
-      if (!loggedIn) return;
       btn.addEventListener('click', function () {
+        var cid = getCustomerId();
+        if (!cid) return alert('Please log in to participate.');
         var tid = btn.getAttribute('data-tid');
         var reason = prompt('Why are you reporting this?');
         if (!reason) return;
-        var c = getCustomer();
         api('/reports', {
           method: 'POST',
-          body: { targetType: 'thread', targetId: tid, reason: reason, customer_id: c.id }
+          body: { targetType: 'thread', targetId: tid, reason: reason, customer_id: cid }
         }).then(function (out) {
-          setMsg(tMsg, out && out.success ? 'Reported' : 'Report failed', !(out && out.success));
-        }).catch(function (e) {
-          setMsg(tMsg, 'Report failed: ' + e.message, true);
-        });
+          alert(out && out.success ? 'Reported' : 'Failed');
+        }).catch(function (e) { alert('Failed: ' + e.message); });
       });
     });
   }
@@ -200,27 +195,26 @@
     });
   }
 
-  function loadThreads(container, tMsg, loggedIn) {
+  function loadThreads(container, tMsg) {
     var cat = qs('#cat-filter').value;
     var q = cat ? ('?categoryId=' + encodeURIComponent(cat)) : '';
-    container.innerHTML = '<div class="community-meta">Loading…</div>';
+    loading(container, true);
     return api('/threads' + q).then(function (data) {
-      renderThreads(container, data.items || [], loggedIn);
-      wireThreadActions(container, tMsg, loggedIn);
+      renderThreads(container, data.items || []);
+      wireThreadActions(container);
     }).catch(function (e) {
       container.innerHTML = '';
       setMsg(tMsg, 'Could not load threads: ' + e.message, true);
     });
   }
 
-  // ---------- PUBLIC: mount ----------
+  // Public mount
   window.ForumWidget = {
     mount: function (selector, opts) {
       opts = opts || {};
       var root = qs(selector);
       if (!root) return;
 
-      // Theme Editor: show safe note, no network
       if (isDesignMode()) {
         root.innerHTML =
           '<div class="community-box">Community widget preview is unavailable in the Theme Editor. ' +
@@ -228,54 +222,60 @@
         return;
       }
 
-      // Proxy base for all calls
       window.__FORUM_PROXY__ = opts.proxyUrl || '/apps/community';
 
-      // Render UI immediately
-      template(root);
-      var loggedIn = isLoggedIn();
-      lockGuestUI(root, loggedIn);
+      // show gated message when not logged in
+      if (!getCustomerId()) {
+        root.innerHTML =
+          '<div class="community-box">Please <a href="/account/login">log in</a> to view and participate in the community.</div>';
+        return;
+      }
 
+      // render UI
+      template(root);
       var tMsg = qs('#t-msg', root);
       var sel = qs('#cat-filter', root);
       var list = qs('#threads', root);
 
-      // Health check first
+      // quick health check
       pingProxy().then(function (res) {
         if (!res.ok) {
           var status = (res.error && res.error.status) || 'unknown';
-          setMsg(tMsg, 'App proxy not reachable (status ' + status + '). Check App Proxy URL & secret.', true);
+          setMsg(tMsg, 'App proxy not reachable (status ' + status + '). Check your App Proxy + secret.', true);
           return;
         }
+        loadCategories(sel, tMsg).then(function () { return loadThreads(list, tMsg); });
+        sel.addEventListener('change', function () { loadThreads(list, tMsg); });
 
-        // Load data
-        loadCategories(sel, tMsg).then(function () {
-          return loadThreads(list, tMsg, loggedIn);
-        });
-
-        sel.addEventListener('change', function () { loadThreads(list, tMsg, loggedIn); });
-
-        // Create thread (gated)
         qs('#thread-submit', root).addEventListener('click', function () {
-          if (!isLoggedIn()) return; // button disabled anyway; double-guard
+          var cid = getCustomerId();
+          if (!cid) return setMsg(tMsg, 'Please log in first', true);
+
           var title = (qs('#thread-title', root).value || '').trim();
           if (!title) return setMsg(tMsg, 'Title required', true);
 
           var body = (qs('#thread-body', root).value || '').trim();
-          var tags = (qs('#thread-tags', root).value || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+          var tags = (qs('#thread-tags', root).value || '')
+            .split(',').map(function (s) { return s.trim(); }).filter(Boolean);
           var anon = !!qs('#thread-anon', root).checked;
           var categoryId = sel.value || null;
-          var c = getCustomer();
 
           api('/threads', {
             method: 'POST',
-            body: { title: title, body: body, tags: tags, isAnonymous: anon, categoryId: categoryId, customer_id: c.id }
+            body: {
+              title: title,
+              body: body,
+              tags: tags,
+              isAnonymous: anon,
+              categoryId: categoryId,
+              customer_id: cid
+            }
           }).then(function (out) {
-            setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'), !(out && out.success));
+            setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'), !out || !out.success);
             qs('#thread-title', root).value = '';
             qs('#thread-body', root).value = '';
             qs('#thread-tags', root).value = '';
-            loadThreads(list, tMsg, loggedIn);
+            loadThreads(list, tMsg);
           }).catch(function (e) {
             setMsg(tMsg, 'Failed: ' + e.message, true);
           });
