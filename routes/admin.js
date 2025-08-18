@@ -2,12 +2,15 @@
 import express from 'express';
 import basicAuth from 'express-basic-auth';
 import sanitizeHtml from 'sanitize-html';
+import { Parser } from 'json2csv';
 
 import Thread from '../models/Thread.js';
 import Comment from '../models/Comment.js';
 import Category from '../models/Category.js';
 import Poll from '../models/Poll.js';
 import Report from '../models/Report.js';
+import Vote from '../models/Vote.js';
+import Notification from '../models/Notification.js';
 
 const router = express.Router();
 
@@ -62,7 +65,8 @@ router.get('/', async (_req, res, next) => {
   <a href="/admin/comments">Comments</a> ·
   <a href="/admin/reports">Reports</a> ·
   <a href="/admin/categories">Categories</a> ·
-  <a href="/admin/polls">Polls</a>
+  <a href="/admin/polls">Polls</a> ·
+  <a href="/admin/export?type=threads">Export CSV</a>
 </p>
 </body></html>`;
 
@@ -84,6 +88,7 @@ router.get('/threads', async (req, res, next) => {
         (t) => `<li>
   <b><a href="/admin/threads/${t._id}">${esc(t.title || '(untitled)')}</a></b>
   ${t.pinned ? ' · <span style="color:#b35">pinned</span>' : ''}
+  ${t.locked ? ' · <span style="color:#a33">locked</span>' : ''}
   · ${esc(t.status || 'pending')}
   · <small>${t._id}</small>
   <form action="/admin/threads/${t._id}/approve" method="post" style="display:inline;margin-left:8px">
@@ -97,6 +102,12 @@ router.get('/threads', async (req, res, next) => {
   </form>
   <form action="/admin/threads/${t._id}/${t.closed ? 'reopen' : 'close'}" method="post" style="display:inline">
     <button type="submit">${t.closed ? 'Reopen' : 'Close'}</button>
+  </form>
+  <form action="/admin/threads/${t._id}/${t.locked ? 'unlock' : 'lock'}" method="post" style="display:inline">
+    <button type="submit">${t.locked ? 'Unlock' : 'Lock'}</button>
+  </form>
+  <form action="/admin/threads/${t._id}/delete" method="post" style="display:inline" onsubmit="return confirm('Delete thread?');">
+    <button type="submit">Delete</button>
   </form>
 </li>`
       )
@@ -124,7 +135,7 @@ ${status === 'pending' ? `
   }
 });
 
-// Thread detail (with comments)
+// Thread detail (with comments + mod tools)
 router.get('/threads/:id', async (req, res, next) => {
   try {
     const t = await Thread.findById(req.params.id).lean();
@@ -151,13 +162,24 @@ router.get('/threads/:id', async (req, res, next) => {
          <button type="submit">Reject</button>
        </form>`
     : ''}
+  <form action="/admin/comments/${c._id}/edit" method="post" style="display:inline;margin-left:6px">
+    <input type="hidden" name="body" value="${esc((c.body || '').slice(0, 5000))}">
+    <button type="submit">Quick Save</button>
+  </form>
+  <form action="/admin/comments/${c._id}/reject-with-reason" method="post" style="display:inline">
+    <input name="reason" placeholder="reason" />
+    <button type="submit">Reject+Reason</button>
+  </form>
+  <form action="/admin/comments/${c._id}/delete" method="post" style="display:inline" onsubmit="return confirm('Delete comment?');">
+    <button type="submit">Delete</button>
+  </form>
 </li>`
       )
       .join('');
 
     const fallback = `<!doctype html><html><body style="font-family:system-ui,Segoe UI,Roboto,Arial;margin:24px">
 <h2>${esc(t.title || '(untitled)')}</h2>
-<p><i>Status:</i> ${esc(t.status || 'pending')} ${t.pinned ? '· pinned' : ''} ${t.closed ? '· closed' : ''}</p>
+<p><i>Status:</i> ${esc(t.status || 'pending')} ${t.pinned ? '· pinned' : ''} ${t.closed ? '· closed' : ''} ${t.locked ? '· locked' : ''}</p>
 <pre style="background:#f6f6f6;padding:12px;border-radius:8px">${esc(t.body || '')}</pre>
 
 <div style="margin:10px 0">
@@ -167,11 +189,40 @@ router.get('/threads/:id', async (req, res, next) => {
   <form action="/admin/threads/${t._id}/reject" method="post" style="display:inline;margin-right:6px">
     <button type="submit">Reject</button>
   </form>
+  <form action="/admin/threads/${t._id}/reject-with-reason" method="post" style="display:inline;margin-right:6px">
+    <input name="reason" placeholder="reason" />
+    <button type="submit">Reject + Reason</button>
+  </form>
   <form action="/admin/threads/${t._id}/${t.pinned ? 'unpin' : 'pin'}" method="post" style="display:inline;margin-right:6px">
     <button type="submit">${t.pinned ? 'Unpin' : 'Pin'}</button>
   </form>
-  <form action="/admin/threads/${t._id}/${t.closed ? 'reopen' : 'close'}" method="post" style="display:inline">
+  <form action="/admin/threads/${t._id}/${t.closed ? 'reopen' : 'close'}" method="post" style="display:inline;margin-right:6px">
     <button type="submit">${t.closed ? 'Reopen' : 'Close'}</button>
+  </form>
+  <form action="/admin/threads/${t._id}/${t.locked ? 'unlock' : 'lock'}" method="post" style="display:inline;margin-right:6px">
+    <button type="submit">${t.locked ? 'Unlock' : 'Lock'}</button>
+  </form>
+  <form action="/admin/threads/${t._id}/delete" method="post" style="display:inline;margin-right:6px" onsubmit="return confirm('Delete thread?');">
+    <button type="submit">Delete</button>
+  </form>
+</div>
+
+<div style="margin:10px 0">
+  <h4>Edit thread</h4>
+  <form action="/admin/threads/${t._id}/edit" method="post">
+    <input name="title" placeholder="title" value="${esc(t.title || '')}" style="width:360px" />
+    <br/>
+    <textarea name="body" rows="4" cols="70" style="margin-top:6px">${esc(t.body || '')}</textarea>
+    <br/>
+    <button type="submit">Save</button>
+  </form>
+</div>
+
+<div style="margin:10px 0">
+  <h4>Move to category</h4>
+  <form action="/admin/threads/${t._id}/move" method="post">
+    <input name="categoryId" placeholder="categoryId" />
+    <button type="submit">Move</button>
   </form>
 </div>
 
@@ -234,6 +285,55 @@ router.post('/threads/:id/reopen', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+/* -------------------- 4.1 Thread moderator controls --------------------- */
+// move category
+router.post('/threads/:id/move', async (req, res, next) => {
+  try {
+    await Thread.findByIdAndUpdate(req.params.id, { categoryId: req.body.categoryId || null });
+    res.redirect('back');
+  } catch (e) { next(e); }
+});
+
+// lock / unlock (block new comments)
+router.post('/threads/:id/lock', async (req, res, next) => {
+  try { await Thread.findByIdAndUpdate(req.params.id, { locked: true }); res.redirect('back'); }
+  catch (e) { next(e); }
+});
+router.post('/threads/:id/unlock', async (req, res, next) => {
+  try { await Thread.findByIdAndUpdate(req.params.id, { locked: false }); res.redirect('back'); }
+  catch (e) { next(e); }
+});
+
+// edit title/body
+router.post('/threads/:id/edit', async (req, res, next) => {
+  try {
+    const { title, body } = req.body || {};
+    await Thread.findByIdAndUpdate(req.params.id, {
+      ...(title ? { title: String(title).slice(0, 180) } : {}),
+      ...(body ? { body: sanitizeHtml(body, { allowedTags: [], allowedAttributes: {} }) } : {}),
+    });
+    res.redirect('back');
+  } catch (e) { next(e); }
+});
+
+// delete thread
+router.post('/threads/:id/delete', async (req, res, next) => {
+  try { await Thread.findByIdAndDelete(req.params.id); res.redirect('/admin/threads?status=pending'); }
+  catch (e) { next(e); }
+});
+
+// reject with reason (stores moderationNote)
+router.post('/threads/:id/reject-with-reason', async (req, res, next) => {
+  try {
+    await Thread.findByIdAndUpdate(req.params.id, {
+      status: 'rejected',
+      rejectedAt: new Date(),
+      moderationNote: (req.body.reason || '').slice(0, 300)
+    });
+    res.redirect('back');
+  } catch (e) { next(e); }
+});
+
 /* ------------------------------- Comments -------------------------------- */
 router.get('/comments', async (req, res, next) => {
   try {
@@ -252,6 +352,13 @@ router.get('/comments', async (req, res, next) => {
   </form>
   <form action="/admin/comments/${c._id}/reject" method="post" style="display:inline">
     <button type="submit">Reject</button>
+  </form>
+  <form action="/admin/comments/${c._id}/reject-with-reason" method="post" style="display:inline">
+    <input name="reason" placeholder="reason" />
+    <button type="submit">Reject+Reason</button>
+  </form>
+  <form action="/admin/comments/${c._id}/delete" method="post" style="display:inline" onsubmit="return confirm('Delete comment?');">
+    <button type="submit">Delete</button>
   </form>
 </li>`
       )
@@ -291,6 +398,42 @@ router.post('/comments/:id/approve', async (req, res, next) => {
 router.post('/comments/:id/reject', async (req, res, next) => {
   try {
     await Comment.findByIdAndUpdate(req.params.id, { status: 'rejected', rejectedAt: new Date() });
+    res.redirect('back');
+  } catch (e) { next(e); }
+});
+
+/* -------------------- 4.2 Comment moderator controls -------------------- */
+router.post('/comments/:id/edit', async (req, res, next) => {
+  try {
+    const { body } = req.body || {};
+    await Comment.findByIdAndUpdate(req.params.id, {
+      body: sanitizeHtml(body || '', { allowedTags: [], allowedAttributes: {} })
+    });
+    res.redirect('back');
+  } catch (e) { next(e); }
+});
+
+router.post('/comments/:id/delete', async (req, res, next) => {
+  try {
+    // soft delete if your schema supports it; else hard delete
+    await Comment.findByIdAndUpdate(req.params.id, { deletedAt: new Date(), deletedBy: 'moderator' });
+    res.redirect('back');
+  } catch (e) {
+    // fallback to hard delete if fields aren't in schema
+    try {
+      await Comment.findByIdAndDelete(req.params.id);
+      res.redirect('back');
+    } catch (err) { next(err); }
+  }
+});
+
+router.post('/comments/:id/reject-with-reason', async (req, res, next) => {
+  try {
+    await Comment.findByIdAndUpdate(req.params.id, {
+      status: 'rejected',
+      rejectedAt: new Date(),
+      moderationNote: (req.body.reason || '').slice(0, 300)
+    });
     res.redirect('back');
   } catch (e) { next(e); }
 });
@@ -444,6 +587,45 @@ router.post('/polls/:id/close', async (req, res, next) => {
   try {
     await Poll.findByIdAndUpdate(req.params.id, { status: 'closed' });
     res.redirect('back');
+  } catch (e) { next(e); }
+});
+
+/* -------------------------- 4.3 CSV Exports ----------------------------- */
+// GET /admin/export?type=threads|comments|votes|polls&shop=...&from=YYYY-MM-DD&to=YYYY-MM-DD
+router.get('/export', async (req, res, next) => {
+  try {
+    const { type = 'threads', shop, from, to } = req.query;
+    const base = shop ? { shop } : {};
+    if (from || to) {
+      base.createdAt = {};
+      if (from) base.createdAt.$gte = new Date(from);
+      if (to) base.createdAt.$lte = new Date(to);
+    }
+
+    let docs = [];
+    switch (type) {
+      case 'threads': docs = await Thread.find(base).lean(); break;
+      case 'comments': docs = await Comment.find(base).lean(); break;
+      case 'votes': docs = await Vote.find(base).lean(); break;
+      case 'polls': docs = await Poll.find(base).lean(); break;
+      default: return res.status(400).send('Invalid type');
+    }
+
+    const parser = new Parser();
+    const csv = parser.parse(docs);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${type}.csv`);
+    res.send(csv);
+  } catch (e) { next(e); }
+});
+
+router.get('/notifications', async (_req, res, next) => {
+  try {
+    const items = await Notification.find({}).sort({ createdAt: -1 }).limit(200).lean();
+    const list = (items||[]).map(n => `<li>${esc(n.type)} → ${esc(n.userId)} on ${esc(n.targetType)} ${esc(n.targetId)} <small>${n._id}</small></li>`).join('');
+    const fallback = `<!doctype html><html><body style="font-family:system-ui,Segoe UI,Roboto,Arial;margin:24px">
+<h2>Notifications</h2><ul>${list || '<li>(none)</li>'}</ul><p><a href="/admin">Back</a></p></body></html>`;
+    renderOrFallback(res, 'notifications', { items }, fallback);
   } catch (e) { next(e); }
 });
 

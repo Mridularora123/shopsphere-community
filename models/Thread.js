@@ -20,6 +20,8 @@ const ThreadSchema = new mongoose.Schema({
   tags: [{ type: String, index: true }],      // store tag slugs/labels
   votes: { type: Number, default: 0, index: true },
   commentsCount: { type: Number, default: 0, index: true },
+  moderationNote: { type: String, default: '' },
+  editableUntil: { type: Date, default: null },
   hot: { type: Number, default: 0, index: true },   // for “hot” sorting
 
   rejectedReason: String,

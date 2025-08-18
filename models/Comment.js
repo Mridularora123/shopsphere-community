@@ -18,6 +18,10 @@ const CommentSchema = new mongoose.Schema({
   votes: { type: Number, default: 0, index: true },
   rejectedReason: String,
   locked: { type: Boolean, default: false },
+  moderationNote: { type: String, default: '' },
+  editableUntil: { type: Date, default: null },
+  deletedAt: { type: Date, default: null },
+  deletedBy: { type: String, default: null }, // 'author' | 'moderator'
 }, { timestamps: true });
 
 CommentSchema.index({ shop:1, threadId:1, status:1, createdAt:1 });
