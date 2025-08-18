@@ -2,7 +2,6 @@
 import express from 'express';
 import basicAuth from 'express-basic-auth';
 import sanitizeHtml from 'sanitize-html';
-import { Parser } from 'json2csv';
 
 import Thread from '../models/Thread.js';
 import Comment from '../models/Comment.js';
@@ -42,6 +41,43 @@ function renderOrFallback(res, view, data, fallbackHTML) {
       res.send(html);
     }
   });
+}
+
+/* --------------------- zero-dep CSV export helpers ----------------------- */
+function isPlainObject(v) {
+  return v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date);
+}
+function flattenDoc(doc, prefix = '', out = {}) {
+  const obj = doc && typeof doc.toObject === 'function' ? doc.toObject() : doc;
+  for (const [k, v] of Object.entries(obj || {})) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (v == null) {
+      out[key] = '';
+    } else if (v instanceof Date) {
+      out[key] = v.toISOString();
+    } else if (isPlainObject(v)) {
+      flattenDoc(v, key, out);
+    } else if (Array.isArray(v)) {
+      out[key] = v
+        .map((x) => (isPlainObject(x) ? JSON.stringify(x) : x instanceof Date ? x.toISOString() : String(x)))
+        .join('|');
+    } else {
+      out[key] = String(v);
+    }
+  }
+  return out;
+}
+function toCSV(docs) {
+  const rows = (docs || []).map((d) => flattenDoc(d));
+  const headers = Array.from(rows.reduce((set, r) => { Object.keys(r).forEach((k) => set.add(k)); return set; }, new Set()));
+  const escCsv = (val) => {
+    const s = val == null ? '' : String(val);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [];
+  lines.push(headers.map(escCsv).join(','));
+  for (const r of rows) lines.push(headers.map((h) => escCsv(r[h] ?? '')).join(','));
+  return lines.join('\r\n');
 }
 
 /* --------------------------------- Home ---------------------------------- */
@@ -286,15 +322,12 @@ router.post('/threads/:id/reopen', async (req, res, next) => {
 });
 
 /* -------------------- 4.1 Thread moderator controls --------------------- */
-// move category
 router.post('/threads/:id/move', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { categoryId: req.body.categoryId || null });
     res.redirect('back');
   } catch (e) { next(e); }
 });
-
-// lock / unlock (block new comments)
 router.post('/threads/:id/lock', async (req, res, next) => {
   try { await Thread.findByIdAndUpdate(req.params.id, { locked: true }); res.redirect('back'); }
   catch (e) { next(e); }
@@ -303,8 +336,6 @@ router.post('/threads/:id/unlock', async (req, res, next) => {
   try { await Thread.findByIdAndUpdate(req.params.id, { locked: false }); res.redirect('back'); }
   catch (e) { next(e); }
 });
-
-// edit title/body
 router.post('/threads/:id/edit', async (req, res, next) => {
   try {
     const { title, body } = req.body || {};
@@ -315,14 +346,10 @@ router.post('/threads/:id/edit', async (req, res, next) => {
     res.redirect('back');
   } catch (e) { next(e); }
 });
-
-// delete thread
 router.post('/threads/:id/delete', async (req, res, next) => {
   try { await Thread.findByIdAndDelete(req.params.id); res.redirect('/admin/threads?status=pending'); }
   catch (e) { next(e); }
 });
-
-// reject with reason (stores moderationNote)
 router.post('/threads/:id/reject-with-reason', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, {
@@ -394,7 +421,6 @@ router.post('/comments/:id/approve', async (req, res, next) => {
     res.redirect('back');
   } catch (e) { next(e); }
 });
-
 router.post('/comments/:id/reject', async (req, res, next) => {
   try {
     await Comment.findByIdAndUpdate(req.params.id, { status: 'rejected', rejectedAt: new Date() });
@@ -412,21 +438,18 @@ router.post('/comments/:id/edit', async (req, res, next) => {
     res.redirect('back');
   } catch (e) { next(e); }
 });
-
 router.post('/comments/:id/delete', async (req, res, next) => {
   try {
     // soft delete if your schema supports it; else hard delete
     await Comment.findByIdAndUpdate(req.params.id, { deletedAt: new Date(), deletedBy: 'moderator' });
     res.redirect('back');
   } catch (e) {
-    // fallback to hard delete if fields aren't in schema
     try {
       await Comment.findByIdAndDelete(req.params.id);
       res.redirect('back');
     } catch (err) { next(err); }
   }
 });
-
 router.post('/comments/:id/reject-with-reason', async (req, res, next) => {
   try {
     await Comment.findByIdAndUpdate(req.params.id, {
@@ -471,7 +494,6 @@ router.get('/categories', async (_req, res, next) => {
     renderOrFallback(res, 'categories', { items }, fallback);
   } catch (err) { next(err); }
 });
-
 router.post('/categories/create', async (req, res, next) => {
   try {
     const { shop, name, slug, order = 0 } = req.body || {};
@@ -484,7 +506,6 @@ router.post('/categories/create', async (req, res, next) => {
     res.redirect('back');
   } catch (e) { next(e); }
 });
-
 router.post('/categories/:id/delete', async (req, res, next) => {
   try {
     await Category.findByIdAndDelete(req.params.id);
@@ -518,7 +539,6 @@ router.get('/reports', async (_req, res, next) => {
     renderOrFallback(res, 'reports', { items }, fallback);
   } catch (err) { next(err); }
 });
-
 router.post('/reports/:id/resolve', async (req, res, next) => {
   try {
     await Report.findByIdAndUpdate(req.params.id, { status: 'resolved', resolvedAt: new Date() });
@@ -560,7 +580,6 @@ router.get('/polls', async (_req, res, next) => {
     renderOrFallback(res, 'polls', { items }, fallback);
   } catch (err) { next(err); }
 });
-
 router.post('/polls/create', async (req, res, next) => {
   try {
     const { shop, threadId, question, options } = req.body || {};
@@ -582,7 +601,6 @@ router.post('/polls/create', async (req, res, next) => {
     res.redirect('back');
   } catch (e) { next(e); }
 });
-
 router.post('/polls/:id/close', async (req, res, next) => {
   try {
     await Poll.findByIdAndUpdate(req.params.id, { status: 'closed' });
@@ -611,14 +629,14 @@ router.get('/export', async (req, res, next) => {
       default: return res.status(400).send('Invalid type');
     }
 
-    const parser = new Parser();
-    const csv = parser.parse(docs);
+    const csv = toCSV(docs);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename=${type}.csv`);
     res.send(csv);
   } catch (e) { next(e); }
 });
 
+/* ------------------------------ Notifications --------------------------- */
 router.get('/notifications', async (_req, res, next) => {
   try {
     const items = await Notification.find({}).sort({ createdAt: -1 }).limit(200).lean();
