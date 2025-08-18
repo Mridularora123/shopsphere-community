@@ -96,7 +96,7 @@ app.get('/', (req, res) => {
 
 /* -------------------------------- Routes ------------------------------ */
 app.use('/auth', authRoutes);   // OAuth
-app.use('/proxy', proxyRoutes); // App Proxy endpoints
+app.use('/proxy/api', proxyRoutes); // App Proxy endpoints
 app.use('/admin', adminRoutes); // Moderation UI
 
 /* ---------------------------- 404 + Errors ---------------------------- */
