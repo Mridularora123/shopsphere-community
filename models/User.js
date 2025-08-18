@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
 const UserSchema = new mongoose.Schema({
-  shop: String,
-  customerId: { type: String, default: null },
+  shop: { type: String, index: true },
+  customerId: { type: String, index: true },     // Shopify customer id
+  role: { type: String, enum: ['member','moderator','admin'], default: 'member' },
   displayName: String,
-  role: { type: String, enum: ['member','moderator','admin'], default: 'member' }
 }, { timestamps: true });
 export default mongoose.model('User', UserSchema);

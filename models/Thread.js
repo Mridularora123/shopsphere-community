@@ -1,19 +1,31 @@
 import mongoose from 'mongoose';
+
 const ThreadSchema = new mongoose.Schema({
-  shop: String,
-  title: String,
-  body: String,
-  categoryId: mongoose.Schema.Types.ObjectId,
-  tags: [String],
+  shop: { type: String, index: true },
+  title: { type: String, required: true },
+  body: { type: String, default: '' },
+
   author: {
     customerId: { type: String, default: null },
+    displayName: String,
     isAnonymous: { type: Boolean, default: false },
-    displayName: String
   },
-  status: { type: String, enum: ['pending','approved','rejected'], default: 'pending' },
-  pinned: { type: Boolean, default: false },
-  closed: { type: Boolean, default: false },
-  votes: { type: Number, default: 0 },
-  commentsCount: { type: Number, default: 0 }
+
+  categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', index: true },
+  status: { type: String, enum: ['pending','approved','rejected','closed'], default: 'pending', index: true },
+  pinned: { type: Boolean, default: false, index: true },
+  locked: { type: Boolean, default: false },
+  closedAt: Date,
+
+  tags: [{ type: String, index: true }],      // store tag slugs/labels
+  votes: { type: Number, default: 0, index: true },
+  commentsCount: { type: Number, default: 0, index: true },
+  hot: { type: Number, default: 0, index: true },   // for “hot” sorting
+
+  rejectedReason: String,
 }, { timestamps: true });
+
+ThreadSchema.index({ shop:1, status:1, categoryId:1, pinned:-1, createdAt:-1 });
+ThreadSchema.index({ title: 'text', body: 'text' });
+
 export default mongoose.model('Thread', ThreadSchema);

@@ -1,16 +1,27 @@
 import mongoose from 'mongoose';
+
 const CommentSchema = new mongoose.Schema({
-  shop: String,
-  threadId: mongoose.Schema.Types.ObjectId,
-  parentId: { type: mongoose.Schema.Types.ObjectId, default: null },
-  body: String,
+  shop: { type: String, index: true },
+  threadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Thread', index: true },
+  parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comment', default: null, index: true },
+  depth: { type: Number, default: 0, index: true },  // 0..3
+
+  body: { type: String, default: '' },
+
   author: {
     customerId: { type: String, default: null },
-    isAnonymous: { type: Boolean, default: false },
     displayName: String,
-    isAdmin: { type: Boolean, default: false }
+    isAnonymous: { type: Boolean, default: false },
   },
-  status: { type: String, enum: ['pending','approved','rejected'], default: 'pending' },
-  votes: { type: Number, default: 0 }
+
+  status: { type: String, enum: ['pending','approved','rejected'], default: 'pending', index: true },
+  votes: { type: Number, default: 0, index: true },
+  rejectedReason: String,
+  locked: { type: Boolean, default: false },
 }, { timestamps: true });
+
+CommentSchema.index({ shop:1, threadId:1, status:1, createdAt:1 });
+CommentSchema.index({ threadId:1, parentId:1, createdAt:1 });
+CommentSchema.index({ body: 'text' });
+
 export default mongoose.model('Comment', CommentSchema);
