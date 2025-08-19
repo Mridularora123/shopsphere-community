@@ -13,7 +13,7 @@ import Notification from '../models/Notification.js';
 
 const router = express.Router();
 
-// in case the app doesn't do it globally, parse form posts here too
+// Parse form posts from admin pages
 router.use(express.urlencoded({ extended: true }));
 
 /* ---------- Auth (username=admin, password from ADMIN_PASSWORD) ---------- */
@@ -59,7 +59,9 @@ function flattenDoc(doc, prefix = '', out = {}) {
       flattenDoc(v, key, out);
     } else if (Array.isArray(v)) {
       out[key] = v
-        .map((x) => (isPlainObject(x) ? JSON.stringify(x) : x instanceof Date ? x.toISOString() : String(x)))
+        .map((x) =>
+          isPlainObject(x) ? JSON.stringify(x) : x instanceof Date ? x.toISOString() : String(x)
+        )
         .join('|');
     } else {
       out[key] = String(v);
@@ -69,7 +71,12 @@ function flattenDoc(doc, prefix = '', out = {}) {
 }
 function toCSV(docs) {
   const rows = (docs || []).map((d) => flattenDoc(d));
-  const headers = Array.from(rows.reduce((set, r) => { Object.keys(r).forEach((k) => set.add(k)); return set; }, new Set()));
+  const headers = Array.from(
+    rows.reduce((set, r) => {
+      Object.keys(r).forEach((k) => set.add(k));
+      return set;
+    }, new Set())
+  );
   const escCsv = (val) => {
     const s = val == null ? '' : String(val);
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -177,9 +184,7 @@ router.get('/threads/:id', async (req, res, next) => {
     const t = await Thread.findById(req.params.id).lean();
     if (!t) return res.status(404).send('Thread not found');
 
-    const comments = await Comment.find({ threadId: t._id })
-      .sort({ createdAt: 1 })
-      .lean();
+    const comments = await Comment.find({ threadId: t._id }).sort({ createdAt: 1 }).lean();
 
     const clist = (comments || [])
       .map(
@@ -189,15 +194,15 @@ router.get('/threads/:id', async (req, res, next) => {
   · ${esc(c.status || 'pending')}
   <small>(${c._id})</small>
   ${c.status !== 'approved'
-    ? `<form action="/admin/comments/${c._id}/approve" method="post" style="display:inline;margin-left:6px">
+            ? `<form action="/admin/comments/${c._id}/approve" method="post" style="display:inline;margin-left:6px">
          <button type="submit">Approve</button>
        </form>`
-    : ''}
+            : ''}
   ${c.status !== 'rejected'
-    ? `<form action="/admin/comments/${c._id}/reject" method="post" style="display:inline">
+            ? `<form action="/admin/comments/${c._id}/reject" method="post" style="display:inline">
          <button type="submit">Reject</button>
        </form>`
-    : ''}
+            : ''}
   <form action="/admin/comments/${c._id}/edit" method="post" style="display:inline;margin-left:6px">
     <input type="hidden" name="body" value="${esc((c.body || '').slice(0, 5000))}">
     <button type="submit">Quick Save</button>
@@ -276,7 +281,10 @@ router.get('/threads/:id', async (req, res, next) => {
 // approve all pending
 router.post('/threads/approve-all', async (_req, res, next) => {
   try {
-    await Thread.updateMany({ status: 'pending' }, { $set: { status: 'approved', approvedAt: new Date() } });
+    await Thread.updateMany(
+      { status: 'pending' },
+      { $set: { status: 'approved', approvedAt: new Date() } }
+    );
     res.redirect('/admin/threads?status=pending');
   } catch (e) {
     next(e);
@@ -286,55 +294,85 @@ router.post('/threads/approve-all', async (_req, res, next) => {
 // thread moderation actions
 router.post('/threads/:id/approve', async (req, res, next) => {
   try {
-    await Thread.findByIdAndUpdate(req.params.id, { status: 'approved', approvedAt: new Date() });
+    await Thread.findByIdAndUpdate(req.params.id, {
+      status: 'approved',
+      approvedAt: new Date(),
+    });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/threads/:id/reject', async (req, res, next) => {
   try {
-    await Thread.findByIdAndUpdate(req.params.id, { status: 'rejected', rejectedAt: new Date() });
+    await Thread.findByIdAndUpdate(req.params.id, {
+      status: 'rejected',
+      rejectedAt: new Date(),
+    });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/threads/:id/pin', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { pinned: true });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/threads/:id/unpin', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { pinned: false });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/threads/:id/close', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { closed: true });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/threads/:id/reopen', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { closed: false });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 /* -------------------- 4.1 Thread moderator controls --------------------- */
 router.post('/threads/:id/move', async (req, res, next) => {
   try {
-    await Thread.findByIdAndUpdate(req.params.id, { categoryId: req.body.categoryId || null });
+    await Thread.findByIdAndUpdate(req.params.id, {
+      categoryId: req.body.categoryId || null,
+    });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/threads/:id/lock', async (req, res, next) => {
-  try { await Thread.findByIdAndUpdate(req.params.id, { locked: true }); res.redirect('back'); }
-  catch (e) { next(e); }
+  try {
+    await Thread.findByIdAndUpdate(req.params.id, { locked: true });
+    res.redirect('back');
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/threads/:id/unlock', async (req, res, next) => {
-  try { await Thread.findByIdAndUpdate(req.params.id, { locked: false }); res.redirect('back'); }
-  catch (e) { next(e); }
+  try {
+    await Thread.findByIdAndUpdate(req.params.id, { locked: false });
+    res.redirect('back');
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/threads/:id/edit', async (req, res, next) => {
   try {
@@ -344,21 +382,29 @@ router.post('/threads/:id/edit', async (req, res, next) => {
       ...(body ? { body: sanitizeHtml(body, { allowedTags: [], allowedAttributes: {} }) } : {}),
     });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/threads/:id/delete', async (req, res, next) => {
-  try { await Thread.findByIdAndDelete(req.params.id); res.redirect('/admin/threads?status=pending'); }
-  catch (e) { next(e); }
+  try {
+    await Thread.findByIdAndDelete(req.params.id);
+    res.redirect('/admin/threads?status=pending');
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/threads/:id/reject-with-reason', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, {
       status: 'rejected',
       rejectedAt: new Date(),
-      moderationNote: (req.body.reason || '').slice(0, 300)
+      moderationNote: (req.body.reason || '').slice(0, 300),
     });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 /* ------------------------------- Comments -------------------------------- */
@@ -408,24 +454,71 @@ router.get('/comments', async (req, res, next) => {
   }
 });
 
+// Approve comment (only count once)
 router.post('/comments/:id/approve', async (req, res, next) => {
   try {
-    const c = await Comment.findByIdAndUpdate(
-      req.params.id,
-      { status: 'approved', approvedAt: new Date() },
-      { new: true }
-    );
-    if (c?.threadId) {
-      await Thread.findByIdAndUpdate(c.threadId, { $inc: { commentsCount: 1 } });
+    const c = await Comment.findById(req.params.id);
+    if (!c) return res.redirect('back');
+
+    if (c.status !== 'approved') {
+      c.status = 'approved';
+      c.approvedAt = new Date();
+      await c.save();
+      if (c.threadId) {
+        await Thread.findByIdAndUpdate(c.threadId, { $inc: { commentsCount: 1 } });
+      }
     }
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
+
+// Reject comment (decrement if it had been approved)
 router.post('/comments/:id/reject', async (req, res, next) => {
   try {
-    await Comment.findByIdAndUpdate(req.params.id, { status: 'rejected', rejectedAt: new Date() });
+    const c = await Comment.findById(req.params.id);
+    if (!c) return res.redirect('back');
+
+    const wasApproved = c.status === 'approved';
+    c.status = 'rejected';
+    c.rejectedAt = new Date();
+    await c.save();
+
+    if (wasApproved && c.threadId) {
+      await Thread.updateOne({ _id: c.threadId }, { $inc: { commentsCount: -1 } });
+    }
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
+});
+
+// ✅ Delete comment (single route; decrements count if needed)
+router.post('/comments/:id/delete', async (req, res, next) => {
+  try {
+    const c = await Comment.findById(req.params.id);
+    if (!c) return res.redirect('back');
+
+    const wasApproved = c.status === 'approved';
+    const threadId = c.threadId;
+
+    // Try soft delete if schema supports it, else hard delete
+    if ('deletedAt' in c) {
+      c.deletedAt = new Date();
+      c.deletedBy = 'moderator';
+      await c.save();
+    } else {
+      await c.deleteOne();
+    }
+
+    if (wasApproved && threadId) {
+      await Thread.updateOne({ _id: threadId }, { $inc: { commentsCount: -1 } });
+    }
+    res.redirect('back');
+  } catch (e) {
+    next(e);
+  }
 });
 
 /* -------------------- 4.2 Comment moderator controls -------------------- */
@@ -433,32 +526,31 @@ router.post('/comments/:id/edit', async (req, res, next) => {
   try {
     const { body } = req.body || {};
     await Comment.findByIdAndUpdate(req.params.id, {
-      body: sanitizeHtml(body || '', { allowedTags: [], allowedAttributes: {} })
+      body: sanitizeHtml(body || '', { allowedTags: [], allowedAttributes: {} }),
     });
     res.redirect('back');
-  } catch (e) { next(e); }
-});
-router.post('/comments/:id/delete', async (req, res, next) => {
-  try {
-    // soft delete if your schema supports it; else hard delete
-    await Comment.findByIdAndUpdate(req.params.id, { deletedAt: new Date(), deletedBy: 'moderator' });
-    res.redirect('back');
   } catch (e) {
-    try {
-      await Comment.findByIdAndDelete(req.params.id);
-      res.redirect('back');
-    } catch (err) { next(err); }
+    next(e);
   }
 });
 router.post('/comments/:id/reject-with-reason', async (req, res, next) => {
   try {
-    await Comment.findByIdAndUpdate(req.params.id, {
-      status: 'rejected',
-      rejectedAt: new Date(),
-      moderationNote: (req.body.reason || '').slice(0, 300)
-    });
+    const c = await Comment.findById(req.params.id);
+    if (!c) return res.redirect('back');
+
+    const wasApproved = c.status === 'approved';
+    c.status = 'rejected';
+    c.rejectedAt = new Date();
+    c.moderationNote = (req.body.reason || '').slice(0, 300);
+    await c.save();
+
+    if (wasApproved && c.threadId) {
+      await Thread.updateOne({ _id: c.threadId }, { $inc: { commentsCount: -1 } });
+    }
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 /* ------------------------------- Categories ------------------------------ */
@@ -492,7 +584,9 @@ router.get('/categories', async (_req, res, next) => {
 </body></html>`;
 
     renderOrFallback(res, 'categories', { items }, fallback);
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 router.post('/categories/create', async (req, res, next) => {
   try {
@@ -504,13 +598,17 @@ router.post('/categories/create', async (req, res, next) => {
       order: Number(order) || 0,
     });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/categories/:id/delete', async (req, res, next) => {
   try {
     await Category.findByIdAndDelete(req.params.id);
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 /* -------------------------------- Reports -------------------------------- */
@@ -537,13 +635,20 @@ router.get('/reports', async (_req, res, next) => {
 </body></html>`;
 
     renderOrFallback(res, 'reports', { items }, fallback);
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 router.post('/reports/:id/resolve', async (req, res, next) => {
   try {
-    await Report.findByIdAndUpdate(req.params.id, { status: 'resolved', resolvedAt: new Date() });
+    await Report.findByIdAndUpdate(req.params.id, {
+      status: 'resolved',
+      resolvedAt: new Date(),
+    });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 /* --------------------------------- Polls --------------------------------- */
@@ -578,18 +683,26 @@ router.get('/polls', async (_req, res, next) => {
 </body></html>`;
 
     renderOrFallback(res, 'polls', { items }, fallback);
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 router.post('/polls/create', async (req, res, next) => {
   try {
     const { shop, threadId, question, options } = req.body || {};
-    const cleanedQ = sanitizeHtml((question || '').slice(0, 160), { allowedTags: [], allowedAttributes: {} });
+    const cleanedQ = sanitizeHtml((question || '').slice(0, 160), {
+      allowedTags: [],
+      allowedAttributes: {},
+    });
 
     const parsed = (options || '')
       .split(/\r?\n/)
       .map((s) => s.trim())
       .filter(Boolean)
-      .map((t, i) => ({ id: String(i + 1), text: sanitizeHtml(t, { allowedTags: [], allowedAttributes: {} }) }));
+      .map((t, i) => ({
+        id: String(i + 1),
+        text: sanitizeHtml(t, { allowedTags: [], allowedAttributes: {} }),
+      }));
 
     await Poll.create({
       shop: (shop || '').trim(),
@@ -599,13 +712,17 @@ router.post('/polls/create', async (req, res, next) => {
     });
 
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 router.post('/polls/:id/close', async (req, res, next) => {
   try {
     await Poll.findByIdAndUpdate(req.params.id, { status: 'closed' });
     res.redirect('back');
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 /* -------------------------- 4.3 CSV Exports ----------------------------- */
@@ -622,29 +739,49 @@ router.get('/export', async (req, res, next) => {
 
     let docs = [];
     switch (type) {
-      case 'threads': docs = await Thread.find(base).lean(); break;
-      case 'comments': docs = await Comment.find(base).lean(); break;
-      case 'votes': docs = await Vote.find(base).lean(); break;
-      case 'polls': docs = await Poll.find(base).lean(); break;
-      default: return res.status(400).send('Invalid type');
+      case 'threads':
+        docs = await Thread.find(base).lean();
+        break;
+      case 'comments':
+        docs = await Comment.find(base).lean();
+        break;
+      case 'votes':
+        docs = await Vote.find(base).lean();
+        break;
+      case 'polls':
+        docs = await Poll.find(base).lean();
+        break;
+      default:
+        return res.status(400).send('Invalid type');
     }
 
     const csv = toCSV(docs);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename=${type}.csv`);
     res.send(csv);
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 /* ------------------------------ Notifications --------------------------- */
 router.get('/notifications', async (_req, res, next) => {
   try {
     const items = await Notification.find({}).sort({ createdAt: -1 }).limit(200).lean();
-    const list = (items||[]).map(n => `<li>${esc(n.type)} → ${esc(n.userId)} on ${esc(n.targetType)} ${esc(n.targetId)} <small>${n._id}</small></li>`).join('');
+    const list = (items || [])
+      .map(
+        (n) =>
+          `<li>${esc(n.type)} → ${esc(n.userId)} on ${esc(n.targetType)} ${esc(
+            n.targetId
+          )} <small>${n._id}</small></li>`
+      )
+      .join('');
     const fallback = `<!doctype html><html><body style="font-family:system-ui,Segoe UI,Roboto,Arial;margin:24px">
 <h2>Notifications</h2><ul>${list || '<li>(none)</li>'}</ul><p><a href="/admin">Back</a></p></body></html>`;
     renderOrFallback(res, 'notifications', { items }, fallback);
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 export default router;
