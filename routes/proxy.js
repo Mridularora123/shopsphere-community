@@ -93,35 +93,77 @@ router.get('/threads', async (req, res) => {
   if (!shop) return res.json({ success: false, message: 'shop required' });
 
   const lim = parseLimit(limit);
+
+  // Base filters (approved only)
   const base = { shop, status: 'approved' };
   if (categoryId) base.categoryId = categoryId;
-  if (tag) base.tags = tag;
+  if (tag) base.tags = tag;                       // still support explicit ?tag=
+
   if (cursor) base._id = { $lt: cursor };
 
-  // date filters
+  // CreatedAt window (from/to or top&period)
   const created = {};
   if (from) created.$gte = new Date(from);
   if (to) created.$lte = new Date(to);
   if (created.$gte || created.$lte) base.createdAt = created;
 
-  // top period shortcut
   if (sort === 'top' && period) {
     const w = periodToWindow(period);
     base.createdAt = { ...(base.createdAt || {}), $gte: w.from, $lte: w.to };
   }
 
-  const isSearch = !!q;
-  const query = isSearch ? { ...base, $text: { $search: q } } : base;
-  const projection = isSearch ? { score: { $meta: 'textScore' } } : undefined;
+  // --- NEW: parse q for tag: and cat: tokens ---
+  // Supports:
+  //   q="tag:abc" or q="#abc"  -> filter by tags
+  //   q="cat:general"          -> filter by category slug
+  //   q="foo bar tag:abc"      -> tags + text "foo bar"
+  let textQuery = '';
+  let tagsInQ = [];
+  let catSlug = '';
 
+  if (q && q.trim()) {
+    q.trim().split(/\s+/).forEach(tok => {
+      if (/^tag:/i.test(tok)) {
+        const v = tok.slice(4).trim();
+        if (v) tagsInQ.push(v.toLowerCase());
+      } else if (tok.startsWith('#')) {
+        const v = tok.slice(1).trim();
+        if (v) tagsInQ.push(v.toLowerCase());
+      } else if (/^cat:/i.test(tok)) {
+        catSlug = tok.slice(4).trim().toLowerCase();
+      } else {
+        textQuery += (textQuery ? ' ' : '') + tok;
+      }
+    });
+  }
+
+  if (tagsInQ.length) {
+    // require all tags typed; change to $in for "any"
+    base.tags = { $all: tagsInQ };
+  }
+
+  if (catSlug) {
+    const cat = await Category.findOne({ shop, slug: catSlug }).select('_id').lean();
+    if (cat) base.categoryId = String(cat._id);
+    // if slug doesn't exist, return empty quickly
+    else return res.json({ success: true, items: [], next: null });
+  }
+
+  // Build final Mongo query
+  const isTextSearch = !!textQuery;
+  const query = isTextSearch ? { ...base, $text: { $search: textQuery } } : base;
+  const projection = isTextSearch ? { score: { $meta: 'textScore' } } : undefined;
+
+  // Sort (text score when searching)
   let ordering = sortMap(sort);
-  if (isSearch) ordering = { score: { $meta: 'textScore' } };
+  if (isTextSearch) ordering = { score: { $meta: 'textScore' } };
 
   const items = await Thread.find(query, projection).sort(ordering).limit(lim).lean();
   const next = items.length === lim ? String(items[items.length - 1]._id) : null;
 
   res.json({ success: true, items, next });
 });
+
 
 // Create thread (pending unless AUTO_APPROVE=true) + filters + editable window + hot
 router.post('/threads', async (req, res) => {
