@@ -36,10 +36,17 @@
     return null;
   }
   function getCustomerName() {
-    // optional helper; filled by your Liquid snippet
     var m = document.querySelector('meta[name="forum-customer-name"]');
     if (m && m.content) return m.content.trim();
     if (window.__community && window.__community.customerName) return String(window.__community.customerName);
+    // Optional: best-effort fallback if theme exposes it
+    try {
+      if (window.Shopify && Shopify.customer && Shopify.customer.first_name) {
+        var f = Shopify.customer.first_name || '';
+        var l = Shopify.customer.last_name || '';
+        return (f + ' ' + l).trim();
+      }
+    } catch(_) {}
     return '';
   }
 
@@ -63,7 +70,6 @@
     var base = (window.__FORUM_PROXY__ || '/apps/community') + path;
     var shop = window.__FORUM_SHOP__ || getShop();
 
-    // Merge caller qs + shop
     var merged = Object.assign({}, opts.qs || {});
     if (shop) merged.shop = shop;
 
@@ -221,16 +227,22 @@
         if (!txt) return;
 
         var displayName = anon ? '' : getCustomerName();
+        var tid = btn.closest('.community-card').querySelector('.comment-input').getAttribute('data-tid');
 
         api('/comments', {
           method: 'POST',
           qs: { shop: SHOP },
-          body: { threadId: btn.closest('.community-card').querySelector('.comment-input').getAttribute('data-tid'), parentId: parentId, body: txt, isAnonymous: anon, customer_id: cid, display_name: displayName }
+          body: {
+            threadId: tid,
+            parentId: parentId,
+            body: txt,
+            isAnonymous: anon,
+            customer_id: cid,
+            display_name: displayName
+          }
         })
           .then(function (out) {
             alert((out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
-            // reload comments
-            var tid = btn.closest('.community-card').querySelector('.comment-input').getAttribute('data-tid');
             loadCommentsForThread(tid);
             f.remove();
           })
@@ -305,7 +317,13 @@
         api('/comments', {
           method: 'POST',
           qs: { shop: SHOP },
-          body: { threadId: tid, body: input.value, isAnonymous: anon, customer_id: cid, display_name: displayName }
+          body: {
+            threadId: tid,
+            body: input.value,
+            isAnonymous: anon,
+            customer_id: cid,
+            display_name: displayName
+          }
         })
           .then(function (out) {
             var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
@@ -330,7 +348,7 @@
       });
     });
 
-    // Enable inline reply forms + send
+    // Inline replies
     wireCommentReplies(container, cid, SHOP);
   }
 
@@ -360,7 +378,7 @@
 
   function loadThreads(container, tMsg, cid, SHOP, root) {
     var ctl = getControls(root);
-    var params = { };
+    var params = {};
     if (ctl.category) params.categoryId = ctl.category;
     if (ctl.search) params.q = ctl.search;
     if (ctl.sort) params.sort = ctl.sort;
@@ -373,7 +391,6 @@
       .then(function (data) {
         var items = data.items || [];
         renderThreads(container, items);
-        // load approved comments for each thread
         items.forEach(function (t) { loadCommentsForThread(t._id); });
         wireThreadActions(container, cid, SHOP);
       })
@@ -515,7 +532,19 @@
           var categoryId = sel.value || null;
           var displayName = anon ? '' : getCustomerName();
 
-          api('/threads', { method: 'POST', qs: { shop: SHOP }, body: { title: title, body: body, tags: tags, isAnonymous: anon, categoryId: categoryId, customer_id: cid, display_name: displayName } })
+          api('/threads', {
+            method: 'POST',
+            qs: { shop: SHOP },
+            body: {
+              title: title,
+              body: body,
+              tags: tags,
+              isAnonymous: anon,
+              categoryId: categoryId,
+              customer_id: cid,
+              display_name: displayName
+            }
+          })
             .then(function (out) {
               setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'), !out || !out.success);
               qs('#thread-title', root).value = ''; qs('#thread-body', root).value = ''; qs('#thread-tags', root).value = '';
