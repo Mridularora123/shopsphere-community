@@ -23,7 +23,7 @@
     var m = document.querySelector('meta[name="forum-shop"]');
     if (m && m.content) return normalizeShop(m.content);
     if (window.__FORUM_SHOP) return normalizeShop(window.__FORUM_SHOP);
-    try { if (window.Shopify && Shopify.shop) return normalizeShop(Shopify.shop); } catch (_) {}
+    try { if (window.Shopify && Shopify.shop) return normalizeShop(Shopify.shop); } catch (_) { }
     var h = (location.hostname || '').toLowerCase();
     if (h.endsWith('.myshopify.com')) return normalizeShop(h);
     return '';
@@ -32,7 +32,7 @@
     var m = document.querySelector('meta[name="forum-customer-id"]');
     if (m && m.content) return m.content.trim();
     if (window.__FORUM_CUSTOMER__ && window.__FORUM_CUSTOMER__.id) return String(window.__FORUM_CUSTOMER__.id);
-    try { if (window.Shopify && Shopify.customer && Shopify.customer.id) return String(Shopify.customer.id); } catch (_) {}
+    try { if (window.Shopify && Shopify.customer && Shopify.customer.id) return String(Shopify.customer.id); } catch (_) { }
     return null;
   }
   function getCustomerName() {
@@ -46,7 +46,7 @@
         var l = Shopify.customer.last_name || '';
         return (f + ' ' + l).trim();
       }
-    } catch(_) {}
+    } catch (_) { }
     return '';
   }
 
@@ -145,6 +145,7 @@
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
         '  <div>' + escapeHtml(t.body || '') + '</div>',
         '  <div style="margin:6px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
+        '  <div id="poll-' + t._id + '" class="community-poll" style="margin:8px 0"></div>',
         '  <div id="comments-' + t._id + '"></div>',
         '  <div class="community-row">',
         '    <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..."/>',
@@ -167,8 +168,8 @@
       var safeBody = escapeHtml(c.body || '');
       var self = (
         '<div class="community-comment" ' + pad + '>' +
-          '<b>' + safeName + '</b>: ' + safeBody +
-          ' <button class="reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '" style="margin-left:6px">Reply</button>' +
+        '<b>' + safeName + '</b>: ' + safeBody +
+        ' <button class="reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '" style="margin-left:6px">Reply</button>' +
         '</div>'
       );
       var kids = (c.children || []).map(function (k) { return one(k, depth + 1); }).join('');
@@ -188,6 +189,88 @@
       })
       .catch(function (e) { box.innerHTML = '<div class="community-meta">Failed: ' + e.message + '</div>'; });
   }
+
+  function renderPollHTML(poll, canShowCounts) {
+    var name = 'poll-' + poll._id;
+    var type = poll.multipleAllowed ? 'checkbox' : 'radio';
+
+    var opts = (poll.options || []).map(function (o) {
+      var count = (canShowCounts && typeof o.votes === 'number')
+        ? ' <span class="community-meta">(' + o.votes + ')</span>'
+        : '';
+      return (
+        '<label class="community-poll-option" style="display:block;margin:4px 0">' +
+        '<input type="' + type + '" name="' + name + '" value="' + o.id + '"/>' +
+        ' ' + escapeHtml(o.text) + count +
+        '</label>'
+      );
+    }).join('');
+
+    var closed = poll.status === 'closed';
+    var disabled = closed ? 'disabled' : '';
+    var footer = closed
+      ? '<div class="community-meta">Poll closed</div>'
+      : '<button class="community-btn poll-vote-btn" ' + disabled + '>Vote</button>';
+
+    return (
+      '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
+      '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(poll.question || 'Poll') + '</div>' +
+      opts +
+      footer +
+      '</div>'
+    );
+  }
+
+  function loadPoll(threadId, SHOP, cid) {
+    var box = document.getElementById('poll-' + threadId);
+    if (!box) return;
+
+    // If the viewer has already voted (we flag it locally), ask server to show counts for `afterVote`
+    var votedKey = 'poll_voted_' + SHOP + '_' + threadId;
+    var viewerHasVoted = localStorage.getItem(votedKey) === '1';
+
+    api('/polls/' + encodeURIComponent(threadId), { qs: { viewerHasVoted: viewerHasVoted ? 'true' : 'false' } })
+      .then(function (res) {
+        if (!res || !res.success || !res.poll) { box.innerHTML = ''; return; }
+        var poll = res.poll;
+
+        // When server hides counts (afterVote + not yet voted) it omits the vote numbers.
+        var canShowCounts =
+          viewerHasVoted || poll.showResults === 'always' || poll.status === 'closed';
+
+        box.innerHTML = renderPollHTML(poll, canShowCounts);
+
+        var voteBtn = box.querySelector('.poll-vote-btn');
+        if (!voteBtn || poll.status === 'closed') return;
+
+        voteBtn.addEventListener('click', function () {
+          if (!cid) { alert('Please log in to vote.'); return; }
+
+          var inputs = box.querySelectorAll('input[name="poll-' + poll._id + '"]:checked');
+          var chosen = Array.prototype.map.call(inputs, function (el) { return el.value; });
+
+          if (!chosen.length) { alert('Select at least one option'); return; }
+
+          voteBtn.disabled = true;
+
+          api('/polls/' + encodeURIComponent(threadId) + '/vote', {
+            method: 'POST',
+            body: { optionIds: chosen, customer_id: cid }
+          })
+            .then(function (out) {
+              if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
+              // remember locally so `/polls/:threadId` returns results for afterVote
+              localStorage.setItem(votedKey, '1');
+              // reload to show results
+              loadPoll(threadId, SHOP, cid);
+            })
+            .catch(function (e) { alert('Vote failed: ' + e.message); })
+            .finally(function () { voteBtn.disabled = false; });
+        });
+      })
+      .catch(function () { box.innerHTML = ''; });
+  }
+
 
   /* ---------- reply UI inside comments ---------- */
   function wireCommentReplies(container, cid, SHOP) {
@@ -260,7 +343,7 @@
       try {
         var saved = JSON.parse(localStorage.getItem(key) || '{}');
         if (saved.b) input.value = saved.b;
-      } catch (_) {}
+      } catch (_) { }
       input.addEventListener('input', debounce(function () {
         localStorage.setItem(key, JSON.stringify({ b: input.value, at: Date.now() }));
       }, 300));
@@ -391,7 +474,10 @@
       .then(function (data) {
         var items = data.items || [];
         renderThreads(container, items);
-        items.forEach(function (t) { loadCommentsForThread(t._id); });
+        items.forEach(function (t) {
+          loadCommentsForThread(t._id);
+          loadPoll(t._id, SHOP, cid);   // ← add this line
+        });
         wireThreadActions(container, cid, SHOP);
       })
       .catch(function (e) {
@@ -452,7 +538,7 @@
       var saved = JSON.parse(localStorage.getItem(key) || '{}');
       if (saved.t) title.value = saved.t;
       if (saved.b) body.value = saved.b;
-    } catch (_) {}
+    } catch (_) { }
     var save = debounce(function () { localStorage.setItem(key, JSON.stringify({ t: title.value, b: body.value, at: Date.now() })); }, 300);
     title.addEventListener('input', save);
     body.addEventListener('input', save);
