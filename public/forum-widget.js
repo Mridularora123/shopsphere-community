@@ -11,7 +11,7 @@
   function isDesignMode() { try { return !!(window.Shopify && Shopify.designMode); } catch (_) { return false; } }
   var debounce = function (fn, ms) { var t; return function () { var a = arguments; clearTimeout(t); t = setTimeout(function () { fn.apply(null, a); }, ms || 200); }; };
 
-  /* ---------- robust shop & customer detection ---------- */
+  /* ---------- robust shop, customer & display name detection ---------- */
   function normalizeShop(s) {
     return String(s || '')
       .toLowerCase()
@@ -20,35 +20,38 @@
       .trim();
   }
   function getShop() {
+    // meta
     var m = document.querySelector('meta[name="forum-shop"]');
     if (m && m.content) return normalizeShop(m.content);
+    // window var
     if (window.__FORUM_SHOP) return normalizeShop(window.__FORUM_SHOP);
-    try { if (window.Shopify && Shopify.shop) return normalizeShop(Shopify.shop); } catch (_) { }
+    // Shopify global
+    try { if (window.Shopify && Shopify.shop) return normalizeShop(Shopify.shop); } catch (_) {}
+    // hostname fallback
     var h = (location.hostname || '').toLowerCase();
     if (h.endsWith('.myshopify.com')) return normalizeShop(h);
     return '';
   }
   function getCustomerId() {
     var m = document.querySelector('meta[name="forum-customer-id"]');
-    if (m && m.content) { return m.content.trim(); }
+    if (m && m.content) return m.content.trim();
     if (window.__FORUM_CUSTOMER__ && window.__FORUM_CUSTOMER__.id) return String(window.__FORUM_CUSTOMER__.id);
-    try { if (window.Shopify && Shopify.customer && Shopify.customer.id) return String(Shopify.customer.id); } catch (_) { }
+    try { if (window.Shopify && Shopify.customer && Shopify.customer.id) return String(Shopify.customer.id); } catch (_) {}
     return null;
   }
-  // NEW: best-effort customer display name for posts/comments
-  function getCustomerName() {
+  function getDisplayName() {
+    // Optional meta you can set via Liquid: <meta name="forum-customer-name" content="{{ customer.first_name }} {{ customer.last_name }}">
     var m = document.querySelector('meta[name="forum-customer-name"]');
     if (m && m.content) return m.content.trim();
     if (window.__FORUM_CUSTOMER__ && window.__FORUM_CUSTOMER__.name) return String(window.__FORUM_CUSTOMER__.name);
+    // Some themes expose first/last name (rare)
     try {
       if (window.Shopify && Shopify.customer) {
         var c = Shopify.customer;
-        var nm = [c.first_name, c.last_name].filter(Boolean).join(' ').trim();
-        if (nm) return nm;
-        if (c.email) return c.email;
+        if (c.first_name || c.last_name) return ((c.first_name || '') + ' ' + (c.last_name || '')).trim();
       }
-    } catch (_) { }
-    return ''; // fine to be empty — backend will keep it blank (but not anon unless isAnonymous=true)
+    } catch(_) {}
+    return '';
   }
 
   /* ---------- fetch helpers with query support ---------- */
@@ -70,15 +73,17 @@
     opts = opts || {};
     var base = (window.__FORUM_PROXY__ || '/apps/community') + path;
 
-    // merge qs + shop
+    // append qs object if provided
+    if (opts.qs) {
+      var q = toQuery(opts.qs);
+      if (q) base += (base.indexOf('?') >= 0 ? '&' : '?') + q.slice(1);
+    }
+
+    // ensure we always append ?shop=...
     var shop = window.__FORUM_SHOP__ || getShop();
-    var params = Object.assign({}, opts.qs || {});
-    if (shop) params.shop = shop;
+    if (shop) base += (base.indexOf('?') >= 0 ? '&' : '?') + 'shop=' + encodeURIComponent(shop);
 
-    var qsStr = toQuery(params);
-    var url = base + (qsStr ? (base.indexOf('?') >= 0 ? '&' + qsStr.slice(1) : qsStr) : '');
-
-    return withTimeout(fetch(url, {
+    return withTimeout(fetch(base, {
       method: opts.method || 'GET',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
@@ -88,7 +93,6 @@
       return r.json();
     });
   }
-
   function pingProxy() {
     return api('/ping').then(function (j) { return { ok: true, json: j }; }, function (e) { return { ok: false, error: e }; });
   }
@@ -99,6 +103,7 @@
       '<div class="community-box">',
       '  <div id="t-msg" class="community-meta" style="min-height:18px;margin-bottom:6px"></div>',
 
+      // Controls row: search + suggest + sort + period + date range
       '  <div class="community-row" style="flex-wrap:wrap;gap:8px;align-items:center">',
       '    <div style="position:relative">',
       '      <input id="forum-search" class="community-input" placeholder="Search titles, tags, categories…" style="min-width:220px"/>',
@@ -120,6 +125,7 @@
       '    <button id="forum-apply" class="community-btn" type="button">Apply</button>',
       '  </div>',
 
+      // New thread composer
       '  <div class="community-row" style="margin-top:8px">',
       '    <select id="cat-filter" class="community-input"></select>',
       '    <input id="thread-title" class="community-input" placeholder="Start a new thread (title)"/>',
@@ -146,7 +152,7 @@
         '<div class="community-card">',
         '  <div style="display:flex;justify-content:space-between;align-items:center">',
         '    <div><strong>' + escapeHtml(t.title) + '</strong> ' + (t.pinned ? '<span class="badge">Pinned</span>' : '') + ' ' + (t.closed ? '<span class="badge">Closed</span>' : '') + '</div>',
-        '    <button class="vote" data-id="' + t._id + '" data-type="thread" data-voted="0" style="cursor:pointer;background:none;border:none">▲ ' + (t.votes || 0) + '</button>',
+        '    <button class="vote" data-type="thread" data-id="' + t._id + '" data-voted="0" style="cursor:pointer;background:none;border:none">▲ ' + (t.votes || 0) + '</button>',
         '  </div>',
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
         '  <div>' + escapeHtml(t.body || '') + '</div>',
@@ -163,16 +169,90 @@
     }).join('');
   }
 
-  /* ---------- comments (tree) ---------- */
-  function renderCommentTree(list) {
+  /* ---------- comments: render tree + wires for replies ---------- */
+  function renderCommentTree(list, tid) {
     function one(c, depth) {
-      var pad = 'style="margin-left:' + (depth * 16) + 'px"';
+      var pad = 'style="margin-left:' + (depth * 16) + 'px;margin-top:6px"';
       var a = escapeHtml(c.author && (c.author.displayName || c.author.name) || 'anon');
       var b = escapeHtml(c.body || '');
-      return '<div class="community-comment" ' + pad + '><b>' + a + '</b>: ' + b + '</div>' +
-             (c.children || []).map(function (k) { return one(k, depth + 1); }).join('');
+      var canReply = (typeof c.depth === 'number' ? c.depth : depth) < 3; // UI guard; server also enforces
+      var replyBtn = canReply ? (' <button class="reply-btn" data-cid="' + c._id + '" data-depth="' + (typeof c.depth === 'number' ? c.depth : depth) + '" data-tid="' + tid + '" style="margin-left:8px">Reply</button>') : '';
+      return '<div class="community-comment" ' + pad + '><b>' + a + ':</b> ' + b + replyBtn + '</div>' +
+        (c.children || []).map(function (k) { return one(k, (typeof c.depth === 'number' ? c.depth : depth) + 1); }).join('');
     }
-    return (list || []).map(function (c) { return one(c, 0); }).join('') || '<div class="community-meta">No comments yet</div>';
+    return (list || []).map(function (c) { return one(c, c.depth || 0); }).join('') || '<div class="community-meta">No comments yet</div>';
+  }
+
+  function wireCommentReplies(scope, SHOP, cid) {
+    // event delegation: add inline reply form when clicking "Reply"
+    scope.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.reply-btn'); if (!btn) return;
+      if (!cid) { alert('Please log in to participate.'); return; }
+
+      var depth = parseInt(btn.getAttribute('data-depth') || '0', 10);
+      if (depth >= 3) { alert('Max reply depth reached'); return; }
+
+      // prevent duplicate forms
+      if (btn.__hasForm) return;
+      btn.__hasForm = true;
+
+      var parent = btn.parentNode;
+      var tid = btn.getAttribute('data-tid');
+      var cidParent = btn.getAttribute('data-cid');
+
+      var wrap = document.createElement('div');
+      wrap.style.marginLeft = '12px';
+      wrap.innerHTML =
+        '<div class="community-row" style="margin-top:6px">' +
+        '  <input class="community-input inline-reply-body" placeholder="Write a reply..."/>' +
+        '  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="inline-reply-anon"/><span class="community-meta">Anonymous</span></label>' +
+        '  <button class="community-btn inline-reply-send">Send</button>' +
+        '  <button class="community-btn inline-reply-cancel" style="background:#eee;color:#333">Cancel</button>' +
+        '</div>';
+
+      parent.appendChild(wrap);
+
+      var bodyEl = qs('.inline-reply-body', wrap);
+      var anonEl = qs('.inline-reply-anon', wrap);
+      var send = qs('.inline-reply-send', wrap);
+      var cancel = qs('.inline-reply-cancel', wrap);
+
+      // draft autosave per parent comment
+      var draftKey = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_reply_' + cidParent;
+      try {
+        var saved = JSON.parse(localStorage.getItem(draftKey) || '{}');
+        if (saved.b) bodyEl.value = saved.b;
+      } catch (_) {}
+      bodyEl.addEventListener('input', debounce(function () {
+        localStorage.setItem(draftKey, JSON.stringify({ b: bodyEl.value, at: Date.now() }));
+      }, 300));
+
+      send.addEventListener('click', function () {
+        var text = (bodyEl.value || '').trim();
+        if (!text) return;
+        api('/comments', {
+          method: 'POST',
+          body: {
+            threadId: tid,
+            parentId: cidParent,
+            body: text,
+            isAnonymous: !!anonEl.checked,
+            customer_id: cid,
+            display_name: getDisplayName()
+          }
+        }).then(function (out) {
+          localStorage.removeItem(draftKey);
+          if (!out || !out.success) { alert((out && out.message) || 'Failed'); return; }
+          // reload comments after posting
+          loadCommentsForThread(tid);
+        }).catch(function (e) { alert('Failed: ' + e.message); })
+          .finally(function () { btn.__hasForm = false; wrap.remove(); });
+      });
+
+      cancel.addEventListener('click', function () {
+        btn.__hasForm = false; wrap.remove();
+      });
+    });
   }
 
   function loadCommentsForThread(tid) {
@@ -182,7 +262,9 @@
     api('/comments', { qs: { threadId: tid } })
       .then(function (j) {
         if (!j || !j.success) { box.innerHTML = '<div class="community-meta">Failed to load</div>'; return; }
-        box.innerHTML = renderCommentTree(j.items || []);
+        box.innerHTML = renderCommentTree(j.items || [], tid);
+        // wire reply buttons in this comments box
+        wireCommentReplies(box, (window.__FORUM_SHOP__ || getShop()), getCustomerId());
       })
       .catch(function (e) { box.innerHTML = '<div class="community-meta">Failed: ' + e.message + '</div>'; });
   }
@@ -202,15 +284,12 @@
       }, 300));
     });
 
-    // Voting (toggle) — threads/comments
+    // Voting (toggle) — threads (and comments if you add buttons with data-type="comment")
     qsa('.vote', container).forEach(function (el) {
-      el.setAttribute('role', 'button');
-      el.setAttribute('tabindex', '0');
-
+      el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0');
       function doVote() {
         if (!cid) { alert('Please log in to participate.'); return; }
-        if (el.__voteLock) return;
-        el.__voteLock = true;
+        if (el.__voteLock) return; el.__voteLock = true;
 
         var id = el.getAttribute('data-id');
         var targetType = el.getAttribute('data-type') || 'thread';
@@ -219,59 +298,46 @@
 
         api('/votes/toggle', {
           method: 'POST',
-          qs: { shop: SHOP },
           body: { targetType: targetType, targetId: id, customer_id: cid }
-        })
-          .then(function (out) {
-            if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
-
-            var nowVoted = !!out.voted;
-            var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
-            var next = Math.max(0, current + delta);
-
-            el.setAttribute('data-voted', nowVoted ? '1' : '0');
-            el.textContent = '▲ ' + next;
-            if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
-          })
-          .catch(function (e) { alert('Vote failed: ' + e.message); })
+        }).then(function (out) {
+          if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
+          var nowVoted = !!out.voted;
+          var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
+          var next = Math.max(0, current + delta);
+          el.setAttribute('data-voted', nowVoted ? '1' : '0');
+          el.textContent = '▲ ' + next;
+          if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
+        }).catch(function (e) { alert('Vote failed: ' + e.message); })
           .finally(function () { el.__voteLock = false; });
       }
-
       el.addEventListener('click', doVote);
-      el.addEventListener('keydown', function (ev) {
-        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); doVote(); }
-      });
+      el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); doVote(); } });
     });
 
-    // Comment submit (refresh comments after post)
+    // Comment submit (top-level)
     qsa('.comment-btn', container).forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (!cid) return alert('Please log in to participate.');
-
         var tid = btn.getAttribute('data-tid');
         var input = qs('.comment-input[data-tid="' + tid + '"]', container);
         var anon = qs('.comment-anon[data-tid="' + tid + '"]', container).checked;
         if (!input || !input.value.trim()) return;
-
         api('/comments', {
           method: 'POST',
-          qs: { shop: SHOP },
           body: {
             threadId: tid,
             body: input.value,
             isAnonymous: anon,
             customer_id: cid,
-            display_name: getCustomerName()   // NEW: send name
+            display_name: getDisplayName()
           }
-        })
-          .then(function (out) {
-            var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
-            localStorage.removeItem(key);
-            input.value = '';
-            alert((out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
-            loadCommentsForThread(tid);
-          })
-          .catch(function (e) { alert('Failed: ' + e.message); });
+        }).then(function (out) {
+          var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
+          localStorage.removeItem(key);
+          input.value = '';
+          alert((out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
+          loadCommentsForThread(tid);
+        }).catch(function (e) { alert('Failed: ' + e.message); });
       });
     });
 
@@ -281,7 +347,7 @@
         if (!cid) return alert('Please log in to participate.');
         var tid = btn.getAttribute('data-tid');
         var reason = prompt('Why are you reporting this?'); if (!reason) return;
-        api('/reports', { method: 'POST', qs: { shop: SHOP }, body: { targetType: 'thread', targetId: tid, reason: reason, customer_id: cid } })
+        api('/reports', { method: 'POST', body: { targetType: 'thread', targetId: tid, reason: reason, customer_id: cid } })
           .then(function (out) { alert(out && out.success ? 'Reported' : 'Failed'); })
           .catch(function (e) { alert('Failed: ' + e.message); });
       });
@@ -310,10 +376,10 @@
     };
   }
 
-  /* ---------- load threads (with comments) ---------- */
+  /* ---------- load threads (and their comments) ---------- */
   function loadThreads(container, tMsg, cid, SHOP, root) {
     var ctl = getControls(root);
-    var params = { };
+    var params = {};
     if (ctl.category) params.categoryId = ctl.category;
     if (ctl.search) params.q = ctl.search;
     if (ctl.sort) params.sort = ctl.sort;
@@ -326,7 +392,10 @@
       .then(function (data) {
         var items = data.items || [];
         renderThreads(container, items);
+
+        // load approved comments per thread
         items.forEach(function (t) { loadCommentsForThread(t._id); });
+
         wireThreadActions(container, cid, SHOP);
       })
       .catch(function (e) {
@@ -388,6 +457,7 @@
     if (!title || !body || !toggleBtn) return;
 
     var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_thread';
+    // restore
     try {
       var saved = JSON.parse(localStorage.getItem(key) || '{}');
       if (saved.t) title.value = saved.t;
@@ -429,7 +499,7 @@
       var SHOP = getShop();
       var cid = getCustomerId();
 
-      // Private forum: require login to view/participate
+      // Private forum: require login
       if (!cid) {
         root.innerHTML = '<div class="community-box">Please <a href="/account/login">log in</a> to view and participate in the community.</div>';
         return;
@@ -439,6 +509,7 @@
         return;
       }
 
+      // Render UI
       template(root);
       var tMsg = qs('#t-msg', root);
       var sel = qs('#cat-filter', root);
@@ -446,6 +517,7 @@
 
       var loadNow = function () { return loadThreads(list, tMsg, cid, SHOP, root); };
 
+      // health check
       pingProxy().then(function (res) {
         if (!res.ok) {
           var status = (res.error && res.error.status) || 'unknown';
@@ -453,6 +525,7 @@
           return;
         }
 
+        // sort/period wiring
         var sortSel = qs('#forum-sort', root);
         var periodSel = qs('#forum-period', root);
         function togglePeriod() { periodSel.style.display = (sortSel.value === 'top') ? 'inline-block' : 'none'; }
@@ -460,11 +533,16 @@
         periodSel.addEventListener('change', loadNow);
         qs('#forum-apply', root).addEventListener('click', loadNow);
 
+        // suggest
         wireSuggest(root, SHOP, loadNow);
 
+        // categories + initial threads
         loadCategories(sel, tMsg, SHOP).then(function () { return loadNow(); });
+
+        // change category
         sel.addEventListener('change', loadNow);
 
+        // post new thread
         var draft = wireThreadDraft(root, SHOP, cid);
         qs('#thread-submit', root).addEventListener('click', function () {
           var title = (qs('#thread-title', root).value || '').trim();
@@ -476,7 +554,6 @@
 
           api('/threads', {
             method: 'POST',
-            qs: { },
             body: {
               title: title,
               body: body,
@@ -484,18 +561,18 @@
               isAnonymous: anon,
               categoryId: categoryId,
               customer_id: cid,
-              display_name: getCustomerName()  // NEW: send name
+              display_name: getDisplayName()
             }
-          })
-            .then(function (out) {
-              setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'), !out || !out.success);
-              qs('#thread-title', root).value = ''; qs('#thread-body', root).value = ''; qs('#thread-tags', root).value = '';
-              if (draft) draft.clear();
-              var preview = qs('#thread-preview', root); var toggle = qs('#thread-preview-toggle', root);
-              if (preview.style.display === 'block') { preview.style.display = 'none'; qs('#thread-body', root).style.display = 'block'; toggle.textContent = 'Preview'; }
-              loadNow();
-            })
-            .catch(function (e) { setMsg(tMsg, 'Failed: ' + e.message, true); });
+          }).then(function (out) {
+            setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'), !out || !out.success);
+            // clear fields + draft
+            qs('#thread-title', root).value = ''; qs('#thread-body', root).value = ''; qs('#thread-tags', root).value = '';
+            if (draft) draft.clear();
+            // ensure preview closed
+            var preview = qs('#thread-preview', root); var toggle = qs('#thread-preview-toggle', root);
+            if (preview.style.display === 'block') { preview.style.display = 'none'; qs('#thread-body', root).style.display = 'block'; toggle.textContent = 'Preview'; }
+            loadNow();
+          }).catch(function (e) { setMsg(tMsg, 'Failed: ' + e.message, true); });
         });
       });
     }
