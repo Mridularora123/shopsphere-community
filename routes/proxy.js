@@ -15,14 +15,15 @@ import Notification from '../models/Notification.js';
 
 const router = express.Router();
 
-/* ---------------------------- App Proxy Auth ---------------------------- */
-router.use((req, res, next) => {
-  const ok = verifyAppProxy(req, process.env.APP_PROXY_SHARED_SECRET);
-  if (!ok) return res.status(401).json({ success: false, message: 'Invalid signature' });
-  next();
-});
+/* ---------------------------- Helpers ---------------------------------- */
+function normalizeShop(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/^https?:\/\//, '') // drop scheme
+    .replace(/\/.*$/, '')        // drop any path/trailing slash
+    .trim();
+}
 
-/* ---------------------------- Helper functions -------------------------- */
 const clean = (s) =>
   sanitizeHtml(s || '', { allowedTags: [], allowedAttributes: {} }).slice(0, 8000);
 
@@ -46,8 +47,9 @@ const BANNED = (process.env.BANNED_WORDS || '')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+
 const MAX_LINKS = parseInt(process.env.MAX_LINKS_PER_POST || '5', 10);
-const EDIT_MIN = parseInt(process.env.AUTHOR_EDIT_WINDOW_MIN || '30', 10);
+const EDIT_MIN  = parseInt(process.env.AUTHOR_EDIT_WINDOW_MIN || '30', 10);
 
 function tooManyLinks(text) {
   const m = (text || '').match(/https?:\/\/\S+/gi);
@@ -59,7 +61,7 @@ function violatesBanned(text) {
   return BANNED.some((w) => w && lower.includes(w.toLowerCase()));
 }
 
-/* --------------------------- Auth-ish helpers --------------------------- */
+/* --------------------------- Auth-ish helpers -------------------------- */
 // App Proxy calls don’t carry admin auth; moderation stays in /admin.
 // Author permission: author can edit/delete within window.
 function authorCanModify(doc, customer_id) {
@@ -79,9 +81,24 @@ function periodToWindow(period) {
   return { from, to: now };
 }
 
+/* ---------------------------- App Proxy Auth --------------------------- */
+router.use((req, res, next) => {
+  const ok = verifyAppProxy(req, process.env.APP_PROXY_SHARED_SECRET);
+  if (!ok) return res.status(401).json({ success: false, message: 'Invalid signature' });
+  next();
+});
+
+// Normalize ?shop for every request (prevents https://… vs plain mismatch)
+router.use((req, _res, next) => {
+  if (req.query && typeof req.query.shop === 'string') {
+    req.query.shop = normalizeShop(req.query.shop);
+  }
+  next();
+});
+
 /* -------------------------------- Categories --------------------------- */
 router.get('/categories', async (req, res) => {
-  const { shop } = req.query;
+  const shop = req.query.shop;
   const items = await Category.find({ shop }).sort({ order: 1, name: 1 }).lean();
   res.json({ success: true, items });
 });
@@ -89,7 +106,8 @@ router.get('/categories', async (req, res) => {
 /* -------------------------------- Threads ------------------------------ */
 // List threads with filters, search, sort, pagination, periods & date range
 router.get('/threads', async (req, res) => {
-  const { shop, categoryId, tag, q, cursor, limit, sort, period, from, to } = req.query;
+  const shop = req.query.shop;
+  const { categoryId, tag, q, cursor, limit, sort, period, from, to } = req.query;
   if (!shop) return res.json({ success: false, message: 'shop required' });
 
   const lim = parseLimit(limit);
@@ -97,14 +115,13 @@ router.get('/threads', async (req, res) => {
   // Base filters (approved only)
   const base = { shop, status: 'approved' };
   if (categoryId) base.categoryId = categoryId;
-  if (tag) base.tags = tag;                       // still support explicit ?tag=
-
+  if (tag) base.tags = tag; // still support explicit ?tag=
   if (cursor) base._id = { $lt: cursor };
 
   // CreatedAt window (from/to or top&period)
   const created = {};
   if (from) created.$gte = new Date(from);
-  if (to) created.$lte = new Date(to);
+  if (to)   created.$lte = new Date(to);
   if (created.$gte || created.$lte) base.createdAt = created;
 
   if (sort === 'top' && period) {
@@ -112,11 +129,7 @@ router.get('/threads', async (req, res) => {
     base.createdAt = { ...(base.createdAt || {}), $gte: w.from, $lte: w.to };
   }
 
-  // --- NEW: parse q for tag: and cat: tokens ---
-  // Supports:
-  //   q="tag:abc" or q="#abc"  -> filter by tags
-  //   q="cat:general"          -> filter by category slug
-  //   q="foo bar tag:abc"      -> tags + text "foo bar"
+  // --- Parse q for tokens: tag:xyz / #xyz / cat:slug + remaining text
   let textQuery = '';
   let tagsInQ = [];
   let catSlug = '';
@@ -138,48 +151,42 @@ router.get('/threads', async (req, res) => {
   }
 
   if (tagsInQ.length) {
-    // require all tags typed; change to $in for "any"
+    // require all listed tags; change to $in for "any of"
     base.tags = { $all: tagsInQ };
   }
 
   if (catSlug) {
     const cat = await Category.findOne({ shop, slug: catSlug }).select('_id').lean();
     if (cat) base.categoryId = String(cat._id);
-    // if slug doesn't exist, return empty quickly
-    else return res.json({ success: true, items: [], next: null });
+    else return res.json({ success: true, items: [], next: null }); // unknown slug
   }
 
-  // Build final Mongo query
   const isTextSearch = !!textQuery;
-  const query = isTextSearch ? { ...base, $text: { $search: textQuery } } : base;
-  const projection = isTextSearch ? { score: { $meta: 'textScore' } } : undefined;
+  const query       = isTextSearch ? { ...base, $text: { $search: textQuery } } : base;
+  const projection  = isTextSearch ? { score: { $meta: 'textScore' } } : undefined;
 
-  // Sort (text score when searching)
   let ordering = sortMap(sort);
   if (isTextSearch) ordering = { score: { $meta: 'textScore' } };
 
   const items = await Thread.find(query, projection).sort(ordering).limit(lim).lean();
-  const next = items.length === lim ? String(items[items.length - 1]._id) : null;
+  const next  = items.length === lim ? String(items[items.length - 1]._id) : null;
 
   res.json({ success: true, items, next });
 });
 
-
 // Create thread (pending unless AUTO_APPROVE=true) + filters + editable window + hot
 router.post('/threads', async (req, res) => {
-  const { shop } = req.query;
+  const shop = req.query.shop;
   const { title, body, categoryId, tags = [], isAnonymous = false, customer_id, display_name } = req.body || {};
-  if (!shop) return res.json({ success: false, message: 'shop required' });
+  if (!shop)  return res.json({ success: false, message: 'shop required' });
   if (!title) return res.json({ success: false, message: 'Title required' });
 
   const cleanBody = clean(body);
 
-  if (violatesBanned(`${title} ${cleanBody}`)) {
+  if (violatesBanned(`${title} ${cleanBody}`))
     return res.json({ success: false, message: 'Content contains banned terms' });
-  }
-  if (tooManyLinks(cleanBody)) {
+  if (tooManyLinks(cleanBody))
     return res.json({ success: false, message: `Too many links (max ${MAX_LINKS})` });
-  }
 
   const now = new Date();
   const editableUntil = customer_id ? new Date(now.getTime() + EDIT_MIN * 60000) : null;
@@ -211,7 +218,7 @@ router.post('/threads', async (req, res) => {
 /* -------------------------------- Comments ----------------------------- */
 // Create comment (supports threading up to depth 3) + filters + editable window
 router.post('/comments', async (req, res) => {
-  const { shop } = req.query;
+  const shop = req.query.shop;
   const { threadId, body, isAnonymous = false, parentId = null, customer_id, display_name } = req.body || {};
   if (!shop) return res.json({ success: false, message: 'shop required' });
   if (!threadId || !body) return res.json({ success: false, message: 'Missing fields' });
@@ -229,12 +236,10 @@ router.post('/comments', async (req, res) => {
   }
 
   const cleanBody = clean(body);
-  if (violatesBanned(cleanBody)) {
+  if (violatesBanned(cleanBody))
     return res.json({ success: false, message: 'Content contains banned terms' });
-  }
-  if (tooManyLinks(cleanBody)) {
+  if (tooManyLinks(cleanBody))
     return res.json({ success: false, message: `Too many links (max ${MAX_LINKS})` });
-  }
 
   const now = new Date();
   const editableUntil = customer_id ? new Date(now.getTime() + EDIT_MIN * 60000) : null;
@@ -274,7 +279,8 @@ router.post('/comments', async (req, res) => {
 
 // Get comments as a threaded tree
 router.get('/comments', async (req, res) => {
-  const { shop, threadId } = req.query;
+  const shop = req.query.shop;
+  const { threadId } = req.query;
   if (!shop || !threadId) return res.json({ success: false, message: 'shop and threadId required' });
 
   const flat = await Comment.find({ shop, threadId, status: 'approved' }).sort({ createdAt: 1 }).lean();
@@ -293,9 +299,8 @@ router.get('/comments', async (req, res) => {
 });
 
 /* --------------------------- Author edit / delete ----------------------- */
-// Author edits thread
 router.patch('/threads/:id', async (req, res) => {
-  const { shop } = req.query;
+  const shop = req.query.shop;
   const { id } = req.params;
   const { title, body, customer_id } = req.body || {};
   if (!shop || !customer_id) return res.json({ success: false, message: 'shop and customer_id required' });
@@ -304,13 +309,13 @@ router.patch('/threads/:id', async (req, res) => {
   if (!authorCanModify(t, customer_id)) return res.json({ success: false, message: 'Edit window expired' });
 
   if (title) t.title = String(title).slice(0, 180);
-  if (body) t.body = clean(body);
+  if (body)  t.body  = clean(body);
   await t.save();
   res.json({ success: true });
 });
 
 router.delete('/threads/:id', async (req, res) => {
-  const { shop } = req.query;
+  const shop = req.query.shop;
   const { id } = req.params;
   const { customer_id } = req.body || {};
   if (!shop || !customer_id) return res.json({ success: false, message: 'shop and customer_id required' });
@@ -322,9 +327,8 @@ router.delete('/threads/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// Author edits/deletes comment
 router.patch('/comments/:id', async (req, res) => {
-  const { shop } = req.query;
+  const shop = req.query.shop;
   const { id } = req.params;
   const { body, customer_id } = req.body || {};
   if (!shop || !customer_id || !body) return res.json({ success: false, message: 'missing fields' });
@@ -338,7 +342,7 @@ router.patch('/comments/:id', async (req, res) => {
 });
 
 router.delete('/comments/:id', async (req, res) => {
-  const { shop } = req.query;
+  const shop = req.query.shop;
   const { id } = req.params;
   const { customer_id } = req.body || {};
   if (!shop || !customer_id) return res.json({ success: false, message: 'missing fields' });
@@ -355,7 +359,7 @@ router.delete('/comments/:id', async (req, res) => {
 /* -------------------------------- Votes -------------------------------- */
 // Toggle upvote for thread/comment (one per user; reversible) + refresh hot
 router.post('/votes/toggle', async (req, res) => {
-  const { shop } = req.query;
+  const shop = req.query.shop;
   const { targetType, targetId, customer_id, fingerprint } = req.body || {};
   if (!shop) return res.json({ success: false, message: 'shop required' });
   if (!targetType || !targetId) return res.json({ success: false, message: 'Missing fields' });
@@ -393,7 +397,7 @@ router.post('/votes/toggle', async (req, res) => {
 
 /* -------------------------------- Reports ------------------------------ */
 router.post('/reports', async (req, res) => {
-  const { shop } = req.query;
+  const shop = req.query.shop;
   const { targetType, targetId, reason, customer_id, isAnonymous = false } = req.body || {};
   if (!shop) return res.json({ success: false, message: 'shop required' });
   if (!targetType || !targetId || !reason) return res.json({ success: false, message: 'Missing fields' });
@@ -412,7 +416,7 @@ router.post('/reports', async (req, res) => {
 /* -------------------------------- Polls -------------------------------- */
 // Create a poll (use from admin/mod UI)
 router.post('/polls', async (req, res) => {
-  const { shop } = req.query;
+  const shop = normalizeShop(req.query.shop);
   const {
     threadId,
     question,
@@ -430,7 +434,7 @@ router.post('/polls', async (req, res) => {
   }
 
   const poll = await Poll.create({
-    shop,
+    shop, // normalized
     threadId,
     question: clean(question),
     options: options.map((t, i) => ({ id: String(i + 1), text: clean(t), votes: 0 })),
@@ -447,8 +451,9 @@ router.post('/polls', async (req, res) => {
 
 // Get a poll (respect results visibility)
 router.get('/polls/:threadId', async (req, res) => {
-  const { shop, viewerHasVoted } = req.query;
+  const shop = normalizeShop(req.query.shop);
   const { threadId } = req.params;
+  const { viewerHasVoted } = req.query;
   if (!shop) return res.json({ success: false, message: 'shop required' });
 
   const poll = await Poll.findOne({ shop, threadId }).lean();
@@ -470,7 +475,7 @@ router.get('/polls/:threadId', async (req, res) => {
 
 // Vote on a poll (supports multiple-choice; idempotent per user)
 router.post('/polls/:threadId/vote', async (req, res) => {
-  const { shop } = req.query;
+  const shop = normalizeShop(req.query.shop);
   const { threadId } = req.params;
   const { optionIds = [], customer_id, fingerprint } = req.body || {};
 
@@ -517,24 +522,35 @@ router.post('/polls/:threadId/vote', async (req, res) => {
 /* ------------------------------ Search --------------------------------- */
 // Search comments (full-text)
 router.get('/comments/search', async (req, res) => {
-  const { shop, q, threadId, limit } = req.query;
+  const shop = req.query.shop;
+  const { q, threadId, limit } = req.query;
   if (!shop || !q) return res.json({ success: false, message: 'shop and q required' });
+
   const lim = parseLimit(limit);
   const base = { shop, status: 'approved' };
   if (threadId) base.threadId = threadId;
+
   const items = await Comment.find({ ...base, $text: { $search: q } }, { score: { $meta: 'textScore' } })
     .sort({ score: { $meta: 'textScore' } })
     .limit(lim)
     .lean();
+
   res.json({ success: true, items });
 });
 
 // Typeahead suggestions (titles + tags + categories)
 router.get('/suggest', async (req, res) => {
-  const { shop, q } = req.query;
+  const shop = req.query.shop;
+  const { q } = req.query;
   if (!shop || !q) return res.json({ success: false, message: 'shop and q required' });
+
   const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-  const titles = await Thread.find({ shop, status: 'approved', title: re }).select('title').limit(5).lean();
+
+  const titles = await Thread.find({ shop, status: 'approved', title: re })
+    .select('title')
+    .limit(5)
+    .lean();
+
   const tagsAgg = await Thread.aggregate([
     { $match: { shop, status: 'approved', tags: { $exists: true, $ne: [] } } },
     { $unwind: '$tags' },
@@ -543,10 +559,12 @@ router.get('/suggest', async (req, res) => {
     { $sort: { n: -1 } },
     { $limit: 5 },
   ]);
+
   const cats = await Category.find({ shop, $or: [{ name: re }, { slug: re }] })
     .select('name slug')
     .limit(5)
     .lean();
+
   res.json({ success: true, titles, tags: tagsAgg.map((t) => t._id), categories: cats });
 });
 
