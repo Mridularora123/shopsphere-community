@@ -24,8 +24,34 @@ function normalizeShop(s) {
     .trim();
 }
 
-const clean = (s) =>
-  sanitizeHtml(s || '', { allowedTags: [], allowedAttributes: {} }).slice(0, 8000);
+// ✅ Allow safe inline HTML for headings, lists, links, images, etc.
+const CLEAN_OPTS = {
+  allowedTags: [
+    'p', 'br', 'strong', 'em', 'b', 'i', 'u',
+    'ul', 'ol', 'li',
+    'h1', 'h2', 'h3', 'blockquote',
+    'a', 'img',
+    'code', 'pre'
+  ],
+  allowedAttributes: {
+    a: ['href', 'target', 'rel'],
+    img: ['src', 'alt']
+  },
+  allowedSchemes: ['http', 'https', 'mailto', 'data'],
+  // strip everything else
+  disallowedTagsMode: 'discard',
+  transformTags: {
+    a: sanitizeHtml.simpleTransform('a', { target: '_blank', rel: 'noopener noreferrer' }),
+    img: (tagName, attribs) => {
+      // Basic guard: allow only http(s)/data URIs
+      const src = String(attribs.src || '');
+      const ok = /^https?:\/\//i.test(src) || /^data:image\//i.test(src);
+      return ok ? { tagName: 'img', attribs: { src, alt: attribs.alt || '' } } : { tagName: 'span' };
+    }
+  }
+};
+
+const clean = (s) => sanitizeHtml(s || '', CLEAN_OPTS).slice(0, 8000);
 
 const parseLimit = (v) => Math.min(100, Math.max(1, parseInt(v || '20', 10)));
 
@@ -88,7 +114,7 @@ router.use((req, res, next) => {
   next();
 });
 
-// Normalize ?shop for every request (prevents https://… vs plain mismatch)
+// Normalize ?shop for every request
 router.use((req, _res, next) => {
   if (req.query && typeof req.query.shop === 'string') {
     req.query.shop = normalizeShop(req.query.shop);
@@ -115,7 +141,7 @@ router.get('/threads', async (req, res) => {
   // Base filters (approved only)
   const base = { shop, status: 'approved' };
   if (categoryId) base.categoryId = categoryId;
-  if (tag) base.tags = tag; // still support explicit ?tag=
+  if (tag) base.tags = tag; // explicit ?tag=
   if (cursor) base._id = { $lt: cursor };
 
   // CreatedAt window (from/to or top&period)
@@ -129,7 +155,7 @@ router.get('/threads', async (req, res) => {
     base.createdAt = { ...(base.createdAt || {}), $gte: w.from, $lte: w.to };
   }
 
-  // --- Parse q for tokens: tag:xyz / #xyz / cat:slug + remaining text
+  // Parse q for tag/category tokens
   let textQuery = '';
   let tagsInQ = [];
   let catSlug = '';
@@ -151,7 +177,6 @@ router.get('/threads', async (req, res) => {
   }
 
   if (tagsInQ.length) {
-    // require all listed tags; change to $in for "any of"
     base.tags = { $all: tagsInQ };
   }
 
@@ -204,6 +229,7 @@ router.post('/threads', async (req, res) => {
     },
     status: process.env.AUTO_APPROVE === 'true' ? 'approved' : 'pending',
     locked: false,
+    closed: false,
     editableUntil,
     hot: hotScore(0, now),
   });
@@ -225,7 +251,11 @@ router.post('/comments', async (req, res) => {
 
   const thread = await Thread.findById(threadId).lean();
   if (!thread) return res.json({ success: false, message: 'Thread not found' });
-  if (thread.locked) return res.json({ success: false, message: 'Thread locked' });
+
+  // ✅ TC-033: enforce both locked & closed
+  if (thread.locked || thread.closed) {
+    return res.json({ success: false, message: 'Thread closed for new comments' });
+  }
 
   let depth = 0;
   if (parentId) {
@@ -254,6 +284,7 @@ router.post('/comments', async (req, res) => {
     status: process.env.AUTO_APPROVE === 'true' ? 'approved' : 'pending',
     locked: false,
     editableUntil,
+    votes: 0,
   });
 
   if (c.status === 'approved') {
@@ -350,9 +381,8 @@ router.delete('/comments/:id', async (req, res) => {
   if (!c || c.shop !== shop) return res.json({ success: false, message: 'Not found' });
   if (!authorCanModify(c, customer_id)) return res.json({ success: false, message: 'Delete window expired' });
 
-  c.deletedAt = new Date();
-  c.deletedBy = 'author';
-  await c.save();
+  // hard-delete author’s own comment; storefront counts corrected by admin delete route
+  await c.deleteOne();
   res.json({ success: true });
 });
 

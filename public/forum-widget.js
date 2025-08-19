@@ -6,10 +6,35 @@
   function qs(s, r) { return (r || document).querySelector(s); }
   function qsa(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
   function escapeHtml(s) { return (s || '').replace(/[&<>"']/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]; }); }
-  function setMsg(el, t, isErr) { el.textContent = t || ''; el.style.color = isErr ? '#b00020' : '#666'; if (t) setTimeout(function () { el.textContent = ''; }, 3500); }
+  function setMsg(el, t, isErr) { el.textContent = t || ''; el.style.color = isErr ? '#b00020' : '#2f6f2f'; }
   function loading(el, on) { if (!el) return; el.innerHTML = on ? '<div class="community-meta">Loading…</div>' : ''; }
   function isDesignMode() { try { return !!(window.Shopify && Shopify.designMode); } catch (_) { return false; } }
   var debounce = function (fn, ms) { var t; return function () { var a = arguments; clearTimeout(t); t = setTimeout(function () { fn.apply(null, a); }, ms || 200); }; };
+
+  /* ---------- inject minimal styles (responsive polish for TC-103) ---------- */
+  function injectStyles() {
+    if (document.getElementById('community-style')) return;
+    var css = [
+      '.community-box{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:860px;margin:0 auto}',
+      '.community-row{display:flex;gap:8px;align-items:center}',
+      '.community-input,.community-textarea{flex:1 1 auto;padding:8px;border:1px solid #ddd;border-radius:8px;min-width:0}',
+      '.community-textarea{width:100%}',
+      '.community-btn{padding:8px 10px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer}',
+      '.community-card{border:1px solid #eee;border-radius:12px;padding:12px;margin:10px 0;box-shadow:0 1px 2px rgba(0,0,0,.04)}',
+      '.community-tag{display:inline-block;background:#f5f5f5;border:1px solid #eee;border-radius:999px;padding:2px 8px;margin-right:6px;font-size:12px}',
+      '.community-meta{color:#666;font-size:12px}',
+      '.badge{display:inline-block;background:#eef;border:1px solid #dde;padding:2px 6px;border-radius:6px;font-size:11px;margin-left:6px}',
+      '.vote.voted{font-weight:700}',
+      '.reply-form .community-textarea{min-height:60px}',
+      '.comment-actions{display:inline-flex;gap:6px;margin-left:8px}',
+      '.s-item:hover{background:#f6f6f6}',
+      '@media (max-width:600px){.community-row{flex-wrap:wrap}.community-btn{width:auto}.community-input{min-width:180px}}'
+    ].join('');
+    var style = document.createElement('style');
+    style.id = 'community-style';
+    style.innerHTML = css;
+    document.head.appendChild(style);
+  }
 
   /* ---------- robust shop & customer detection ---------- */
   function normalizeShop(s) {
@@ -39,7 +64,6 @@
     var m = document.querySelector('meta[name="forum-customer-name"]');
     if (m && m.content) return m.content.trim();
     if (window.__community && window.__community.customerName) return String(window.__community.customerName);
-    // Optional: best-effort fallback if theme exposes it
     try {
       if (window.Shopify && Shopify.customer && Shopify.customer.first_name) {
         var f = Shopify.customer.first_name || '';
@@ -90,102 +114,197 @@
     return api('/ping').then(function (j) { return { ok: true, json: j }; }, function (e) { return { ok: false, error: e }; });
   }
 
+  /* ---------- Markdown helpers / simple RTE (TC Posting & Threading) ---------- */
+  function surroundSelection(textarea, before, after) {
+    textarea.focus();
+    var start = textarea.selectionStart || 0;
+    var end = textarea.selectionEnd || 0;
+    var val = textarea.value;
+    var selected = val.slice(start, end);
+    var replacement = before + selected + (after == null ? '' : after);
+    textarea.value = val.slice(0, start) + replacement + val.slice(end);
+    textarea.setSelectionRange(start + before.length, start + before.length + selected.length);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  function makeToolbar(target) {
+    var bar = document.createElement('div');
+    bar.className = 'community-row';
+    bar.setAttribute('role', 'toolbar');
+    bar.setAttribute('aria-label', 'Formatting toolbar');
+    bar.style.margin = '8px 0';
+
+    function btn(text, title, onClick) {
+      var b = document.createElement('button');
+      b.className = 'community-btn';
+      b.type = 'button';
+      b.textContent = text;
+      b.title = title;
+      b.addEventListener('click', function () { onClick(target); });
+      return b;
+    }
+
+    bar.appendChild(btn('H1', 'Heading', function (ta) { surroundSelection(ta, '# ', ''); }));
+    bar.appendChild(btn('H2', 'Subheading', function (ta) { surroundSelection(ta, '## ', ''); }));
+    bar.appendChild(btn('• List', 'Bulleted list', function (ta) { surroundSelection(ta, '- ', ''); }));
+    bar.appendChild(btn('Link', 'Insert link', function (ta) {
+      var url = prompt('Enter URL'); if (!url) return;
+      surroundSelection(ta, '[', '](' + url + ')');
+    }));
+    bar.appendChild(btn('Image', 'Insert image/GIF', function (ta) {
+      var url = prompt('Image URL'); if (!url) return;
+      surroundSelection(ta, '![](', url + ')');
+    }));
+    return bar;
+  }
+
   /* ---------- UI template ---------- */
   function template(root) {
+    injectStyles();
     root.innerHTML = [
       '<div class="community-box">',
-      '  <div id="t-msg" class="community-meta" style="min-height:18px;margin-bottom:6px"></div>',
+      '  <div id="t-msg" class="community-meta" aria-live="polite" style="min-height:18px;margin-bottom:6px"></div>',
       '  <div class="community-row" style="flex-wrap:wrap;gap:8px;align-items:center">',
-      '    <div style="position:relative">',
-      '      <input id="forum-search" class="community-input" placeholder="Search titles, tags, categories…" style="min-width:220px"/>',
+      '    <div style="position:relative;flex:1">',
+      '      <input id="forum-search" class="community-input" aria-label="Search" placeholder="Search titles, tags, categories…" style="min-width:220px;width:100%"/>',
       '      <div id="forum-suggest" style="position:absolute;top:34px;left:0;right:0;background:#fff;border:1px solid #ddd;display:none;z-index:5"></div>',
       '    </div>',
-      '    <select id="forum-sort" class="community-input" style="width:auto">',
+      '    <select id="forum-sort" class="community-input" aria-label="Sort" style="width:auto">',
       '      <option value="">New</option>',
       '      <option value="top">Top</option>',
       '      <option value="discussed">Most discussed</option>',
       '      <option value="hot">Hot</option>',
       '    </select>',
-      '    <select id="forum-period" class="community-input" style="width:auto;display:none">',
+      '    <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
       '      <option value="day">Day</option>',
       '      <option value="week" selected>Week</option>',
       '      <option value="month">Month</option>',
       '    </select>',
-      '    <input id="forum-from" type="date" class="community-input" style="width:auto"/>',
-      '    <input id="forum-to" type="date" class="community-input" style="width:auto"/>',
-      '    <button id="forum-apply" class="community-btn" type="button">Apply</button>',
+      '    <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto"/>',
+      '    <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto"/>',
+      '    <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
       '  </div>',
       '  <div class="community-row" style="margin-top:8px">',
-      '    <select id="cat-filter" class="community-input"></select>',
-      '    <input id="thread-title" class="community-input" placeholder="Start a new thread (title)"/>',
+      '    <select id="cat-filter" class="community-input" aria-label="Category filter"></select>',
+      '    <input id="thread-title" class="community-input" aria-label="Thread title" placeholder="Start a new thread (title)"/>',
       '  </div>',
-      '  <textarea id="thread-body" class="community-textarea" rows="3" placeholder="Write details..."></textarea>',
+      '  <div id="rte-bar"></div>',
+      '  <textarea id="thread-body" class="community-textarea" rows="4" placeholder="Write details... Supports Markdown for headings, lists, links, and images."></textarea>',
       '  <pre id="thread-preview" style="display:none;background:#fafafa;border:1px solid #eee;padding:10px;border-radius:6px;white-space:pre-wrap"></pre>',
       '  <div class="community-row">',
-      '    <input id="thread-tags" class="community-input" placeholder="tags (comma separated)"/>',
-      '    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="thread-anon"/><span class="community-meta">Anonymous</span></label>',
-      '    <button id="thread-preview-toggle" class="community-btn" type="button">Preview</button>',
+      '    <input id="thread-tags" class="community-input" aria-label="Tags" placeholder="tags (comma separated)"/>',
+      '    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="thread-anon" aria-label="Post anonymously"/><span class="community-meta">Anonymous</span></label>',
+      '    <button id="thread-preview-toggle" class="community-btn" type="button" aria-pressed="false">Preview</button>',
       '    <button id="thread-submit" class="community-btn">Post</button>',
       '  </div>',
       '  <hr/>',
-      '  <div id="threads"></div>',
+      '  <div id="threads" role="list"></div>',
+      '  <div id="load-more-wrap" style="text-align:center;margin:12px 0;display:none">',
+      '    <button id="load-more" class="community-btn" type="button" aria-label="Load more threads">Load more</button>',
+      '  </div>',
       '</div>'
     ].join('\n');
+
+    // mount simple RTE toolbar
+    var body = qs('#thread-body', root);
+    var bar = makeToolbar(body);
+    qs('#rte-bar', root).appendChild(bar);
   }
 
   /* ---------- thread list rendering ---------- */
-  function renderThreads(container, items) {
-    container.innerHTML = (items || []).map(function (t) {
+  function threadActionsHTML(t, cid) {
+    var canEdit = cid && t.author && String(t.author.customerId || '') === String(cid || '') &&
+      t.editableUntil && (new Date(t.editableUntil) > new Date());
+    if (!canEdit) return '';
+    return [
+      '<div class="community-row" style="margin-top:6px">',
+      '  <button class="community-btn t-edit" data-id="' + t._id + '" aria-label="Edit thread">Edit</button>',
+      '  <button class="community-btn t-delete" data-id="' + t._id + '" aria-label="Delete thread">Delete</button>',
+      '</div>',
+      '<div class="t-edit-area" id="t-edit-' + t._id + '" style="display:none;margin-top:6px">',
+      '  <input class="community-input t-edit-title" value="' + escapeHtml(t.title) + '"/>',
+      '  <textarea class="community-textarea t-edit-body" rows="3">' + escapeHtml(t.body || '') + '</textarea>',
+      '  <div class="community-row">',
+      '    <button class="community-btn t-save" data-id="' + t._id + '" aria-label="Save edit">Save</button>',
+      '    <button class="community-btn t-cancel" data-id="' + t._id + '" aria-label="Cancel edit">Cancel</button>',
+      '  </div>',
+      '  <div class="community-meta">You can edit/delete for a limited time.</div>',
+      '</div>'
+    ].join('');
+  }
+
+  function renderThreads(container, items, cid) {
+    var now = new Date();
+    container.insertAdjacentHTML('beforeend', (items || []).map(function (t) {
+      var closedBadge = t.closed ? '<span class="badge">Closed</span>' : '';
+      var pinnedBadge = t.pinned ? '<span class="badge">Pinned</span>' : '';
+      var votes = typeof t.votes === 'number' ? t.votes : 0;
+      var replySection = '';
+      if (t.closed || t.locked) {
+        replySection = '<div class="community-meta">Thread is ' + (t.closed ? 'closed' : 'locked') + ' — new replies are disabled.</div>';
+      } else {
+        replySection = [
+          '<div class="community-row">',
+          '  <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..." aria-label="Write a comment"/>',
+          '  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="' + t._id + '"/><span class="community-meta">Anonymous</span></label>',
+          '  <button data-tid="' + t._id + '" class="community-btn comment-btn">Reply</button>',
+          '  <button data-tid="' + t._id + '" class="community-btn report-btn" title="Report">Report</button>',
+          '</div>'
+        ].join('');
+      }
       return [
-        '<div class="community-card">',
+        '<div class="community-card" role="listitem">',
         '  <div style="display:flex;justify-content:space-between;align-items:center">',
-        '    <div><strong>' + escapeHtml(t.title) + '</strong> ' + (t.pinned ? '<span class="badge">Pinned</span>' : '') + ' ' + (t.closed ? '<span class="badge">Closed</span>' : '') + '</div>',
-        '    <button class="vote" data-type="thread" data-id="' + t._id + '" data-voted="0" style="cursor:pointer;background:none;border:none">▲ ' + (t.votes || 0) + '</button>',
+        '    <div><strong>' + escapeHtml(t.title) + '</strong> ' + pinnedBadge + ' ' + closedBadge + '</div>',
+        '    <button class="vote" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0" style="cursor:pointer;background:none;border:none">▲ ' + votes + '</button>',
         '  </div>',
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
         '  <div>' + escapeHtml(t.body || '') + '</div>',
         '  <div style="margin:6px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
+        threadActionsHTML(t, cid),
         '  <div id="poll-' + t._id + '" class="community-poll" style="margin:8px 0"></div>',
         '  <div id="comments-' + t._id + '"></div>',
-        '  <div class="community-row">',
-        '    <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..."/>',
-        '    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="' + t._id + '"/><span class="community-meta">Anonymous</span></label>',
-        '    <button data-tid="' + t._id + '" class="community-btn comment-btn">Reply</button>',
-        '    <button data-tid="' + t._id + '" class="community-btn report-btn" title="Report">Report</button>',
-        '  </div>',
+           replySection,
         '</div>'
       ].join('');
-    }).join('');
+    }).join(''));
   }
 
   /* ---------- comments (threaded) ---------- */
-  function renderCommentTree(list) {
+  function renderCommentTree(list, cid) {
     function one(c, depth) {
       var pad = 'style="margin-left:' + (depth * 16) + 'px"';
       var anon = c && c.author && c.author.isAnonymous;
       var name = anon ? 'anon' : (c && c.author && (c.author.displayName || c.author.name) || 'anon');
       var safeName = escapeHtml(name);
       var safeBody = escapeHtml(c.body || '');
-      var self = (
+      var votes = typeof c.votes === 'number' ? c.votes : 0;
+      var selfActions = '';
+      var canDel = cid && c.author && String(c.author.customerId || '') === String(cid || '') &&
+        c.editableUntil && (new Date(c.editableUntil) > new Date());
+      if (canDel) {
+        selfActions += '<button class="community-btn c-delete" data-id="' + c._id + '">Delete</button>';
+      }
+      var replyBtn = '<button class="reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '" style="margin-left:6px">Reply</button>';
+      var self =
         '<div class="community-comment" ' + pad + '>' +
+        '<button class="vote" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="cursor:pointer;background:none;border:none;margin-right:6px">▲ ' + votes + '</button>' +
         '<b>' + safeName + '</b>: ' + safeBody +
-        ' <button class="reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '" style="margin-left:6px">Reply</button>' +
-        '</div>'
-      );
+        ' <span class="comment-actions">' + replyBtn + ' ' + selfActions + '</span>' +
+        '</div>';
       var kids = (c.children || []).map(function (k) { return one(k, depth + 1); }).join('');
       return self + kids;
     }
     return (list || []).map(function (c) { return one(c, 0); }).join('') || '<div class="community-meta">No comments yet</div>';
   }
 
-  function loadCommentsForThread(tid) {
+  function loadCommentsForThread(tid, cid) {
     var box = document.getElementById('comments-' + tid);
     if (!box) return;
     box.innerHTML = '<div class="community-meta">Loading comments…</div>';
     api('/comments', { qs: { threadId: tid } })
       .then(function (j) {
         if (!j || !j.success) { box.innerHTML = '<div class="community-meta">Failed to load</div>'; return; }
-        box.innerHTML = renderCommentTree(j.items || []);
+        box.innerHTML = renderCommentTree(j.items || [], cid);
       })
       .catch(function (e) { box.innerHTML = '<div class="community-meta">Failed: ' + e.message + '</div>'; });
   }
@@ -225,7 +344,6 @@
     var box = document.getElementById('poll-' + threadId);
     if (!box) return;
 
-    // If the viewer has already voted (we flag it locally), ask server to show counts for `afterVote`
     var votedKey = 'poll_voted_' + SHOP + '_' + threadId;
     var viewerHasVoted = localStorage.getItem(votedKey) === '1';
 
@@ -234,7 +352,6 @@
         if (!res || !res.success || !res.poll) { box.innerHTML = ''; return; }
         var poll = res.poll;
 
-        // When server hides counts (afterVote + not yet voted) it omits the vote numbers.
         var canShowCounts =
           viewerHasVoted || poll.showResults === 'always' || poll.status === 'closed';
 
@@ -259,9 +376,7 @@
           })
             .then(function (out) {
               if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
-              // remember locally so `/polls/:threadId` returns results for afterVote
               localStorage.setItem(votedKey, '1');
-              // reload to show results
               loadPoll(threadId, SHOP, cid);
             })
             .catch(function (e) { alert('Vote failed: ' + e.message); })
@@ -275,6 +390,19 @@
   /* ---------- reply UI inside comments ---------- */
   function wireCommentReplies(container, cid, SHOP) {
     container.addEventListener('click', function (ev) {
+      var del = ev.target.closest('.c-delete');
+      if (del) {
+        var id = del.getAttribute('data-id');
+        if (!confirm('Delete this comment?')) return;
+        api('/comments/' + id, { method: 'DELETE', body: { customer_id: cid } })
+          .then(function (out) {
+            if (!out || !out.success) throw new Error((out && out.message) || 'Delete failed');
+            del.closest('.community-comment').remove();
+          })
+          .catch(function (e) { alert('Failed: ' + e.message); });
+        return;
+      }
+
       var btn = ev.target.closest('.reply-btn');
       if (!btn) return;
       if (!cid) return alert('Please log in to participate.');
@@ -283,7 +411,6 @@
       var depth = parseInt(btn.getAttribute('data-depth') || '0', 10);
       if (depth >= 3) { alert('Max reply depth reached'); return; }
 
-      // prevent duplicate form under same parent
       var existing = btn.parentElement.querySelector('.reply-form');
       if (existing) { existing.querySelector('textarea').focus(); return; }
 
@@ -310,11 +437,10 @@
         if (!txt) return;
 
         var displayName = anon ? '' : getCustomerName();
-        var tid = btn.closest('.community-card').querySelector('.comment-input').getAttribute('data-tid');
+        var tid = btn.closest('.community-card').querySelector('.comment-input')?.getAttribute('data-tid');
 
         api('/comments', {
           method: 'POST',
-          qs: { shop: SHOP },
           body: {
             threadId: tid,
             parentId: parentId,
@@ -325,8 +451,11 @@
           }
         })
           .then(function (out) {
-            alert((out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
-            loadCommentsForThread(tid);
+            // Optimistic UI (TC-102): append "pending" reply immediately
+            var pending = document.createElement('div');
+            pending.className = 'community-meta';
+            pending.textContent = 'Reply submitted for review.';
+            f.insertAdjacentElement('afterend', pending);
             f.remove();
           })
           .catch(function (e) { alert('Failed: ' + e.message); });
@@ -349,10 +478,11 @@
       }, 300));
     });
 
-    // Voting (toggle) — threads (and future comments if you add .vote with data-type="comment")
+    // Voting (toggle) — threads & comments
     qsa('.vote', container).forEach(function (el) {
       el.setAttribute('role', 'button');
       el.setAttribute('tabindex', '0');
+      el.setAttribute('aria-pressed', 'false');
 
       function doVote() {
         if (!cid) { alert('Please log in to participate.'); return; }
@@ -366,7 +496,6 @@
 
         api('/votes/toggle', {
           method: 'POST',
-          qs: { shop: SHOP },
           body: { targetType: targetType, targetId: id, customer_id: cid }
         })
           .then(function (out) {
@@ -375,6 +504,7 @@
             var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
             var next = Math.max(0, current + delta);
             el.setAttribute('data-voted', nowVoted ? '1' : '0');
+            el.setAttribute('aria-pressed', nowVoted ? 'true' : 'false');
             el.textContent = '▲ ' + next;
             if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
           })
@@ -386,7 +516,7 @@
       el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); doVote(); } });
     });
 
-    // Comment submit (top-level under each thread card)
+    // Comment submit (top-level under each thread card) – optimistic (TC-102)
     qsa('.comment-btn', container).forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (!cid) return alert('Please log in to participate.');
@@ -396,24 +526,31 @@
         if (!input || !input.value.trim()) return;
 
         var displayName = anon ? '' : getCustomerName();
+        var text = input.value;
+
+        // optimistic append
+        var box = document.getElementById('comments-' + tid);
+        if (box) {
+          var pending = document.createElement('div');
+          pending.className = 'community-meta';
+          pending.textContent = 'Comment submitted for review.';
+          box.appendChild(pending);
+        }
 
         api('/comments', {
           method: 'POST',
-          qs: { shop: SHOP },
           body: {
             threadId: tid,
-            body: input.value,
+            body: text,
             isAnonymous: anon,
             customer_id: cid,
             display_name: displayName
           }
         })
-          .then(function (out) {
+          .then(function (_out) {
             var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
             localStorage.removeItem(key);
             input.value = '';
-            alert((out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
-            loadCommentsForThread(tid);
           })
           .catch(function (e) { alert('Failed: ' + e.message); });
       });
@@ -425,13 +562,61 @@
         if (!cid) return alert('Please log in to participate.');
         var tid = btn.getAttribute('data-tid');
         var reason = prompt('Why are you reporting this?'); if (!reason) return;
-        api('/reports', { method: 'POST', qs: { shop: SHOP }, body: { targetType: 'thread', targetId: tid, reason: reason, customer_id: cid } })
+        api('/reports', { method: 'POST', body: { targetType: 'thread', targetId: tid, reason: reason, customer_id: cid } })
           .then(function (out) { alert(out && out.success ? 'Reported' : 'Failed'); })
           .catch(function (e) { alert('Failed: ' + e.message); });
       });
     });
 
-    // Inline replies
+    // Thread edit/delete within window (TC-014 / TC-024 for thread)
+    container.addEventListener('click', function (ev) {
+      var tEdit = ev.target.closest('.t-edit');
+      var tDelete = ev.target.closest('.t-delete');
+      var tSave = ev.target.closest('.t-save');
+      var tCancel = ev.target.closest('.t-cancel');
+
+      if (tEdit) {
+        var id = tEdit.getAttribute('data-id');
+        var area = qs('#t-edit-' + id, container);
+        if (area) area.style.display = area.style.display === 'none' ? 'block' : 'none';
+        return;
+      }
+      if (tCancel) {
+        var idc = tCancel.getAttribute('data-id');
+        var areaC = qs('#t-edit-' + idc, container);
+        if (areaC) areaC.style.display = 'none';
+        return;
+      }
+      if (tSave) {
+        var ids = tSave.getAttribute('data-id');
+        var card = tSave.closest('.community-card');
+        var title = card.querySelector('.t-edit-title').value;
+        var body = card.querySelector('.t-edit-body').value;
+        api('/threads/' + ids, { method: 'PATCH', body: { title: title, body: body, customer_id: getCustomerId() } })
+          .then(function (out) {
+            if (!out || !out.success) throw new Error((out && out.message) || 'Edit failed');
+            // update UI
+            card.querySelector('strong').textContent = title;
+            card.querySelector('div:nth-child(3)').textContent = body;
+            qs('#t-edit-' + ids, container).style.display = 'none';
+          })
+          .catch(function (e) { alert('Edit failed: ' + e.message); });
+        return;
+      }
+      if (tDelete) {
+        var idd = tDelete.getAttribute('data-id');
+        if (!confirm('Delete this thread?')) return;
+        api('/threads/' + idd, { method: 'DELETE', body: { customer_id: getCustomerId() } })
+          .then(function (out) {
+            if (!out || !out.success) throw new Error((out && out.message) || 'Delete failed');
+            tDelete.closest('.community-card').remove();
+          })
+          .catch(function (e) { alert('Delete failed: ' + e.message); });
+        return;
+      }
+    });
+
+    // Inline replies (and comment delete) handler
     wireCommentReplies(container, cid, SHOP);
   }
 
@@ -447,7 +632,7 @@
       .catch(function (e) { setMsg(tMsg, 'Could not load categories: ' + e.message, true); });
   }
 
-  /* ---------- threads (with sort/period/date/search) ---------- */
+  /* ---------- threads (with sort/period/date/search + infinite scroll) ---------- */
   function getControls(root) {
     return {
       category: qs('#cat-filter', root).value || '',
@@ -459,7 +644,15 @@
     };
   }
 
-  function loadThreads(container, tMsg, cid, SHOP, root) {
+  function loadThreads(container, tMsg, cid, SHOP, root, opts) {
+    opts = opts || {};
+    if (!container.__state || opts.reset) {
+      container.__state = { next: null, loading: false };
+      container.innerHTML = '';
+    }
+    if (container.__state.loading) return Promise.resolve();
+    container.__state.loading = true;
+
     var ctl = getControls(root);
     var params = {};
     if (ctl.category) params.categoryId = ctl.category;
@@ -468,22 +661,50 @@
     if (ctl.sort === 'top' && ctl.period) params.period = ctl.period;
     if (ctl.from) params.from = ctl.from;
     if (ctl.to) params.to = ctl.to;
+    if (container.__state.next) params.cursor = container.__state.next;
 
-    loading(container, true);
+    if (!container.__state.next) loading(container, true);
+    var moreWrap = qs('#load-more-wrap', root);
+    if (moreWrap) moreWrap.style.display = 'none';
+
     return api('/threads', { qs: params })
       .then(function (data) {
         var items = data.items || [];
-        renderThreads(container, items);
+        loading(container, false);
+        renderThreads(container, items, cid);
         items.forEach(function (t) {
-          loadCommentsForThread(t._id);
-          loadPoll(t._id, SHOP, cid);   // ← add this line
+          loadCommentsForThread(t._id, cid);
+          loadPoll(t._id, SHOP, cid);
         });
         wireThreadActions(container, cid, SHOP);
+
+        container.__state.next = data.next || null;
+        // show/attach infinite loader
+        var btn = qs('#load-more', root);
+        if (container.__state.next) {
+          moreWrap.style.display = 'block';
+          btn.onclick = function () { loadThreads(container, tMsg, cid, SHOP, root, { reset: false }); };
+          // IntersectionObserver for auto load
+          if (!container.__io) {
+            var io = new IntersectionObserver(function (entries) {
+              entries.forEach(function (e) {
+                if (e.isIntersecting && container.__state.next) {
+                  loadThreads(container, tMsg, cid, SHOP, root, { reset: false });
+                }
+              });
+            }, { rootMargin: '200px' });
+            io.observe(moreWrap);
+            container.__io = io;
+          }
+        } else {
+          moreWrap.style.display = 'none';
+        }
       })
       .catch(function (e) {
-        container.innerHTML = '';
+        loading(container, false);
         setMsg(tMsg, 'Could not load threads: ' + e.message, true);
-      });
+      })
+      .finally(function () { container.__state.loading = false; });
   }
 
   /* ---------- suggest (typeahead) ---------- */
@@ -510,7 +731,7 @@
     }, 150);
 
     input.addEventListener('input', doSuggest);
-    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); hide(); load(); } });
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); hide(); load({ reset: true }); } });
     input.addEventListener('blur', function () { setTimeout(hide, 150); });
 
     box.addEventListener('mousedown', function (e) {
@@ -521,7 +742,7 @@
         var slug = (text.match(/\(([^)]+)\)\s*$/) || [])[1] || '';
         input.value = 'cat:' + slug + ' ';
       } else { input.value = text; }
-      hide(); load();
+      hide(); load({ reset: true });
     });
   }
 
@@ -547,6 +768,7 @@
     toggleBtn.addEventListener('click', function () {
       on = !on;
       toggleBtn.textContent = on ? 'Edit' : 'Preview';
+      toggleBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
       body.style.display = on ? 'none' : 'block';
       preview.style.display = on ? 'block' : 'none';
       preview.textContent = (title.value ? ('# ' + title.value + '\n\n') : '') + (body.value || '');
@@ -587,7 +809,7 @@
       var sel = qs('#cat-filter', root);
       var list = qs('#threads', root);
 
-      var loadNow = function () { return loadThreads(list, tMsg, cid, SHOP, root); };
+      var loadNow = function (opts) { return loadThreads(list, tMsg, cid, SHOP, root, Object.assign({ reset: true }, opts || {})); };
 
       pingProxy().then(function (res) {
         if (!res.ok) {
@@ -600,13 +822,13 @@
         var periodSel = qs('#forum-period', root);
         function togglePeriod() { periodSel.style.display = (sortSel.value === 'top') ? 'inline-block' : 'none'; }
         sortSel.addEventListener('change', function () { togglePeriod(); loadNow(); });
-        periodSel.addEventListener('change', loadNow);
-        qs('#forum-apply', root).addEventListener('click', loadNow);
+        periodSel.addEventListener('change', function(){ loadNow(); });
+        qs('#forum-apply', root).addEventListener('click', function(){ loadNow(); });
 
         wireSuggest(root, SHOP, loadNow);
 
         loadCategories(sel, tMsg, SHOP).then(function () { return loadNow(); });
-        sel.addEventListener('change', loadNow);
+        sel.addEventListener('change', function(){ loadNow(); });
 
         var draft = wireThreadDraft(root, SHOP, cid);
         qs('#thread-submit', root).addEventListener('click', function () {
@@ -618,9 +840,9 @@
           var categoryId = sel.value || null;
           var displayName = anon ? '' : getCustomerName();
 
+          // Submit without reloading list – optimistic UX (TC-102)
           api('/threads', {
             method: 'POST',
-            qs: { shop: SHOP },
             body: {
               title: title,
               body: body,
@@ -632,12 +854,26 @@
             }
           })
             .then(function (out) {
-              setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'), !out || !out.success);
+              setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
               qs('#thread-title', root).value = ''; qs('#thread-body', root).value = ''; qs('#thread-tags', root).value = '';
               if (draft) draft.clear();
               var preview = qs('#thread-preview', root); var toggle = qs('#thread-preview-toggle', root);
-              if (preview.style.display === 'block') { preview.style.display = 'none'; qs('#thread-body', root).style.display = 'block'; toggle.textContent = 'Preview'; }
-              loadNow();
+              if (preview.style.display === 'block') { preview.style.display = 'none'; qs('#thread-body', root).style.display = 'block'; toggle.textContent = 'Preview'; toggle.setAttribute('aria-pressed', 'false'); }
+              // Optionally insert a local "pending" card at top
+              var tmp = {
+                _id: 'tmp-' + Date.now(),
+                title: title + ' (pending review)',
+                body: body,
+                tags: tags,
+                author: { customerId: cid },
+                createdAt: new Date().toISOString(),
+                pinned: false,
+                closed: false,
+                votes: 0,
+                editableUntil: new Date(Date.now() + 15*60*1000).toISOString()
+              };
+              renderThreads(list, [tmp], cid);
+              wireThreadActions(list, cid, SHOP);
             })
             .catch(function (e) { setMsg(tMsg, 'Failed: ' + e.message, true); });
         });
