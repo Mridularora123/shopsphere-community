@@ -408,14 +408,13 @@ router.post('/threads/:id/reject-with-reason', async (req, res, next) => {
 });
 
 /* ------------------------------- Comments -------------------------------- */
+/* ------------------------------- Comments -------------------------------- */
 router.get('/comments', async (req, res, next) => {
   try {
     const status = (req.query.status || 'pending').toString();
     const items = await Comment.find({ status }).sort({ createdAt: -1 }).lean();
 
-    const list = (items || [])
-      .map(
-        (c) => `<li>
+    const list = (items || []).map((c) => `<li>
   <b>${esc(c.author?.displayName || c.author?.name || 'anon')}</b>:
   ${esc((c.body || '').slice(0, 120))}
   · ${esc(c.status || 'pending')}
@@ -433,9 +432,7 @@ router.get('/comments', async (req, res, next) => {
   <form action="/admin/comments/${c._id}/delete" method="post" style="display:inline" onsubmit="return confirm('Delete comment?');">
     <button type="submit">Delete</button>
   </form>
-</li>`
-      )
-      .join('');
+</li>`).join('');
 
     const fallback = `<!doctype html><html><body style="font-family:system-ui,Segoe UI,Roboto,Arial;margin:24px">
 <h2>Comments (${esc(status)})</h2>
@@ -454,47 +451,28 @@ router.get('/comments', async (req, res, next) => {
   }
 });
 
-// Approve comment (only count once)
 router.post('/comments/:id/approve', async (req, res, next) => {
   try {
-    const c = await Comment.findById(req.params.id);
-    if (!c) return res.redirect('back');
-
-    if (c.status !== 'approved') {
-      c.status = 'approved';
-      c.approvedAt = new Date();
-      await c.save();
-      if (c.threadId) {
-        await Thread.findByIdAndUpdate(c.threadId, { $inc: { commentsCount: 1 } });
-      }
+    const c = await Comment.findByIdAndUpdate(
+      req.params.id,
+      { status: 'approved', approvedAt: new Date() },
+      { new: true }
+    );
+    if (c?.threadId) {
+      await Thread.findByIdAndUpdate(c.threadId, { $inc: { commentsCount: 1 } });
     }
     res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+  } catch (e) { next(e); }
 });
 
-// Reject comment (decrement if it had been approved)
 router.post('/comments/:id/reject', async (req, res, next) => {
   try {
-    const c = await Comment.findById(req.params.id);
-    if (!c) return res.redirect('back');
-
-    const wasApproved = c.status === 'approved';
-    c.status = 'rejected';
-    c.rejectedAt = new Date();
-    await c.save();
-
-    if (wasApproved && c.threadId) {
-      await Thread.updateOne({ _id: c.threadId }, { $inc: { commentsCount: -1 } });
-    }
+    await Comment.findByIdAndUpdate(req.params.id, { status: 'rejected', rejectedAt: new Date() });
     res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+  } catch (e) { next(e); }
 });
 
-// ✅ Delete comment (single route; decrements count if needed)
+/* ✅ SINGLE delete route: hard delete + keep counts in sync */
 router.post('/comments/:id/delete', async (req, res, next) => {
   try {
     const c = await Comment.findById(req.params.id);
@@ -503,55 +481,37 @@ router.post('/comments/:id/delete', async (req, res, next) => {
     const wasApproved = c.status === 'approved';
     const threadId = c.threadId;
 
-    // Try soft delete if schema supports it, else hard delete
-    if ('deletedAt' in c) {
-      c.deletedAt = new Date();
-      c.deletedBy = 'moderator';
-      await c.save();
-    } else {
-      await c.deleteOne();
-    }
+    await c.deleteOne();
 
     if (wasApproved && threadId) {
       await Thread.updateOne({ _id: threadId }, { $inc: { commentsCount: -1 } });
     }
+
     res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+  } catch (e) { next(e); }
 });
 
-/* -------------------- 4.2 Comment moderator controls -------------------- */
 router.post('/comments/:id/edit', async (req, res, next) => {
   try {
     const { body } = req.body || {};
     await Comment.findByIdAndUpdate(req.params.id, {
-      body: sanitizeHtml(body || '', { allowedTags: [], allowedAttributes: {} }),
+      body: sanitizeHtml(body || '', { allowedTags: [], allowedAttributes: {} })
     });
     res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+  } catch (e) { next(e); }
 });
+
 router.post('/comments/:id/reject-with-reason', async (req, res, next) => {
   try {
-    const c = await Comment.findById(req.params.id);
-    if (!c) return res.redirect('back');
-
-    const wasApproved = c.status === 'approved';
-    c.status = 'rejected';
-    c.rejectedAt = new Date();
-    c.moderationNote = (req.body.reason || '').slice(0, 300);
-    await c.save();
-
-    if (wasApproved && c.threadId) {
-      await Thread.updateOne({ _id: c.threadId }, { $inc: { commentsCount: -1 } });
-    }
+    await Comment.findByIdAndUpdate(req.params.id, {
+      status: 'rejected',
+      rejectedAt: new Date(),
+      moderationNote: (req.body.reason || '').slice(0, 300)
+    });
     res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+  } catch (e) { next(e); }
 });
+
 
 /* ------------------------------- Categories ------------------------------ */
 router.get('/categories', async (_req, res, next) => {
