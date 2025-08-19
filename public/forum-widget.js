@@ -11,7 +11,7 @@
   function isDesignMode() { try { return !!(window.Shopify && Shopify.designMode); } catch (_) { return false; } }
   var debounce = function (fn, ms) { var t; return function () { var a = arguments; clearTimeout(t); t = setTimeout(function () { fn.apply(null, a); }, ms || 200); }; };
 
-  /* ---------- robust shop, customer & display name detection ---------- */
+  /* ---------- robust shop & customer detection ---------- */
   function normalizeShop(s) {
     return String(s || '')
       .toLowerCase()
@@ -20,14 +20,10 @@
       .trim();
   }
   function getShop() {
-    // meta
     var m = document.querySelector('meta[name="forum-shop"]');
     if (m && m.content) return normalizeShop(m.content);
-    // window var
     if (window.__FORUM_SHOP) return normalizeShop(window.__FORUM_SHOP);
-    // Shopify global
     try { if (window.Shopify && Shopify.shop) return normalizeShop(Shopify.shop); } catch (_) {}
-    // hostname fallback
     var h = (location.hostname || '').toLowerCase();
     if (h.endsWith('.myshopify.com')) return normalizeShop(h);
     return '';
@@ -39,18 +35,11 @@
     try { if (window.Shopify && Shopify.customer && Shopify.customer.id) return String(Shopify.customer.id); } catch (_) {}
     return null;
   }
-  function getDisplayName() {
-    // Optional meta you can set via Liquid: <meta name="forum-customer-name" content="{{ customer.first_name }} {{ customer.last_name }}">
+  function getCustomerName() {
+    // optional helper; filled by your Liquid snippet
     var m = document.querySelector('meta[name="forum-customer-name"]');
     if (m && m.content) return m.content.trim();
-    if (window.__FORUM_CUSTOMER__ && window.__FORUM_CUSTOMER__.name) return String(window.__FORUM_CUSTOMER__.name);
-    // Some themes expose first/last name (rare)
-    try {
-      if (window.Shopify && Shopify.customer) {
-        var c = Shopify.customer;
-        if (c.first_name || c.last_name) return ((c.first_name || '') + ' ' + (c.last_name || '')).trim();
-      }
-    } catch(_) {}
+    if (window.__community && window.__community.customerName) return String(window.__community.customerName);
     return '';
   }
 
@@ -72,18 +61,16 @@
   function api(path, opts) {
     opts = opts || {};
     var base = (window.__FORUM_PROXY__ || '/apps/community') + path;
-
-    // append qs object if provided
-    if (opts.qs) {
-      var q = toQuery(opts.qs);
-      if (q) base += (base.indexOf('?') >= 0 ? '&' : '?') + q.slice(1);
-    }
-
-    // ensure we always append ?shop=...
     var shop = window.__FORUM_SHOP__ || getShop();
-    if (shop) base += (base.indexOf('?') >= 0 ? '&' : '?') + 'shop=' + encodeURIComponent(shop);
 
-    return withTimeout(fetch(base, {
+    // Merge caller qs + shop
+    var merged = Object.assign({}, opts.qs || {});
+    if (shop) merged.shop = shop;
+
+    var q = toQuery(merged);
+    var url = base + (base.indexOf('?') >= 0 ? (q ? '&' + q.slice(1) : '') : q);
+
+    return withTimeout(fetch(url, {
       method: opts.method || 'GET',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
@@ -102,8 +89,6 @@
     root.innerHTML = [
       '<div class="community-box">',
       '  <div id="t-msg" class="community-meta" style="min-height:18px;margin-bottom:6px"></div>',
-
-      // Controls row: search + suggest + sort + period + date range
       '  <div class="community-row" style="flex-wrap:wrap;gap:8px;align-items:center">',
       '    <div style="position:relative">',
       '      <input id="forum-search" class="community-input" placeholder="Search titles, tags, categories…" style="min-width:220px"/>',
@@ -124,8 +109,6 @@
       '    <input id="forum-to" type="date" class="community-input" style="width:auto"/>',
       '    <button id="forum-apply" class="community-btn" type="button">Apply</button>',
       '  </div>',
-
-      // New thread composer
       '  <div class="community-row" style="margin-top:8px">',
       '    <select id="cat-filter" class="community-input"></select>',
       '    <input id="thread-title" class="community-input" placeholder="Start a new thread (title)"/>',
@@ -138,7 +121,6 @@
       '    <button id="thread-preview-toggle" class="community-btn" type="button">Preview</button>',
       '    <button id="thread-submit" class="community-btn">Post</button>',
       '  </div>',
-
       '  <hr/>',
       '  <div id="threads"></div>',
       '</div>'
@@ -169,90 +151,24 @@
     }).join('');
   }
 
-  /* ---------- comments: render tree + wires for replies ---------- */
-  function renderCommentTree(list, tid) {
+  /* ---------- comments (threaded) ---------- */
+  function renderCommentTree(list) {
     function one(c, depth) {
-      var pad = 'style="margin-left:' + (depth * 16) + 'px;margin-top:6px"';
-      var a = escapeHtml(c.author && (c.author.displayName || c.author.name) || 'anon');
-      var b = escapeHtml(c.body || '');
-      var canReply = (typeof c.depth === 'number' ? c.depth : depth) < 3; // UI guard; server also enforces
-      var replyBtn = canReply ? (' <button class="reply-btn" data-cid="' + c._id + '" data-depth="' + (typeof c.depth === 'number' ? c.depth : depth) + '" data-tid="' + tid + '" style="margin-left:8px">Reply</button>') : '';
-      return '<div class="community-comment" ' + pad + '><b>' + a + ':</b> ' + b + replyBtn + '</div>' +
-        (c.children || []).map(function (k) { return one(k, (typeof c.depth === 'number' ? c.depth : depth) + 1); }).join('');
+      var pad = 'style="margin-left:' + (depth * 16) + 'px"';
+      var anon = c && c.author && c.author.isAnonymous;
+      var name = anon ? 'anon' : (c && c.author && (c.author.displayName || c.author.name) || 'anon');
+      var safeName = escapeHtml(name);
+      var safeBody = escapeHtml(c.body || '');
+      var self = (
+        '<div class="community-comment" ' + pad + '>' +
+          '<b>' + safeName + '</b>: ' + safeBody +
+          ' <button class="reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '" style="margin-left:6px">Reply</button>' +
+        '</div>'
+      );
+      var kids = (c.children || []).map(function (k) { return one(k, depth + 1); }).join('');
+      return self + kids;
     }
-    return (list || []).map(function (c) { return one(c, c.depth || 0); }).join('') || '<div class="community-meta">No comments yet</div>';
-  }
-
-  function wireCommentReplies(scope, SHOP, cid) {
-    // event delegation: add inline reply form when clicking "Reply"
-    scope.addEventListener('click', function (ev) {
-      var btn = ev.target.closest('.reply-btn'); if (!btn) return;
-      if (!cid) { alert('Please log in to participate.'); return; }
-
-      var depth = parseInt(btn.getAttribute('data-depth') || '0', 10);
-      if (depth >= 3) { alert('Max reply depth reached'); return; }
-
-      // prevent duplicate forms
-      if (btn.__hasForm) return;
-      btn.__hasForm = true;
-
-      var parent = btn.parentNode;
-      var tid = btn.getAttribute('data-tid');
-      var cidParent = btn.getAttribute('data-cid');
-
-      var wrap = document.createElement('div');
-      wrap.style.marginLeft = '12px';
-      wrap.innerHTML =
-        '<div class="community-row" style="margin-top:6px">' +
-        '  <input class="community-input inline-reply-body" placeholder="Write a reply..."/>' +
-        '  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="inline-reply-anon"/><span class="community-meta">Anonymous</span></label>' +
-        '  <button class="community-btn inline-reply-send">Send</button>' +
-        '  <button class="community-btn inline-reply-cancel" style="background:#eee;color:#333">Cancel</button>' +
-        '</div>';
-
-      parent.appendChild(wrap);
-
-      var bodyEl = qs('.inline-reply-body', wrap);
-      var anonEl = qs('.inline-reply-anon', wrap);
-      var send = qs('.inline-reply-send', wrap);
-      var cancel = qs('.inline-reply-cancel', wrap);
-
-      // draft autosave per parent comment
-      var draftKey = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_reply_' + cidParent;
-      try {
-        var saved = JSON.parse(localStorage.getItem(draftKey) || '{}');
-        if (saved.b) bodyEl.value = saved.b;
-      } catch (_) {}
-      bodyEl.addEventListener('input', debounce(function () {
-        localStorage.setItem(draftKey, JSON.stringify({ b: bodyEl.value, at: Date.now() }));
-      }, 300));
-
-      send.addEventListener('click', function () {
-        var text = (bodyEl.value || '').trim();
-        if (!text) return;
-        api('/comments', {
-          method: 'POST',
-          body: {
-            threadId: tid,
-            parentId: cidParent,
-            body: text,
-            isAnonymous: !!anonEl.checked,
-            customer_id: cid,
-            display_name: getDisplayName()
-          }
-        }).then(function (out) {
-          localStorage.removeItem(draftKey);
-          if (!out || !out.success) { alert((out && out.message) || 'Failed'); return; }
-          // reload comments after posting
-          loadCommentsForThread(tid);
-        }).catch(function (e) { alert('Failed: ' + e.message); })
-          .finally(function () { btn.__hasForm = false; wrap.remove(); });
-      });
-
-      cancel.addEventListener('click', function () {
-        btn.__hasForm = false; wrap.remove();
-      });
-    });
+    return (list || []).map(function (c) { return one(c, 0); }).join('') || '<div class="community-meta">No comments yet</div>';
   }
 
   function loadCommentsForThread(tid) {
@@ -262,11 +178,65 @@
     api('/comments', { qs: { threadId: tid } })
       .then(function (j) {
         if (!j || !j.success) { box.innerHTML = '<div class="community-meta">Failed to load</div>'; return; }
-        box.innerHTML = renderCommentTree(j.items || [], tid);
-        // wire reply buttons in this comments box
-        wireCommentReplies(box, (window.__FORUM_SHOP__ || getShop()), getCustomerId());
+        box.innerHTML = renderCommentTree(j.items || []);
       })
       .catch(function (e) { box.innerHTML = '<div class="community-meta">Failed: ' + e.message + '</div>'; });
+  }
+
+  /* ---------- reply UI inside comments ---------- */
+  function wireCommentReplies(container, cid, SHOP) {
+    container.addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.reply-btn');
+      if (!btn) return;
+      if (!cid) return alert('Please log in to participate.');
+
+      var parentId = btn.getAttribute('data-cid');
+      var depth = parseInt(btn.getAttribute('data-depth') || '0', 10);
+      if (depth >= 3) { alert('Max reply depth reached'); return; }
+
+      // prevent duplicate form under same parent
+      var existing = btn.parentElement.querySelector('.reply-form');
+      if (existing) { existing.querySelector('textarea').focus(); return; }
+
+      var f = document.createElement('div');
+      f.className = 'reply-form';
+      f.style.margin = '6px 0 6px 0';
+      f.innerHTML = [
+        '<div class="community-row" style="margin-left:8px">',
+        '  <textarea class="community-textarea" rows="2" placeholder="Write a reply..."></textarea>',
+        '  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="reply-anon"/><span class="community-meta">Anonymous</span></label>',
+        '  <button class="community-btn do-send">Send</button>',
+        '  <button class="community-btn do-cancel" type="button" style="background:#eee;color:#333">Cancel</button>',
+        '</div>'
+      ].join('');
+      btn.insertAdjacentElement('afterend', f);
+
+      f.querySelector('.do-cancel').addEventListener('click', function () {
+        f.remove();
+      });
+
+      f.querySelector('.do-send').addEventListener('click', function () {
+        var txt = (f.querySelector('textarea').value || '').trim();
+        var anon = !!f.querySelector('.reply-anon').checked;
+        if (!txt) return;
+
+        var displayName = anon ? '' : getCustomerName();
+
+        api('/comments', {
+          method: 'POST',
+          qs: { shop: SHOP },
+          body: { threadId: btn.closest('.community-card').querySelector('.comment-input').getAttribute('data-tid'), parentId: parentId, body: txt, isAnonymous: anon, customer_id: cid, display_name: displayName }
+        })
+          .then(function (out) {
+            alert((out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
+            // reload comments
+            var tid = btn.closest('.community-card').querySelector('.comment-input').getAttribute('data-tid');
+            loadCommentsForThread(tid);
+            f.remove();
+          })
+          .catch(function (e) { alert('Failed: ' + e.message); });
+      });
+    });
   }
 
   /* ---------- wire actions on threads after render ---------- */
@@ -278,18 +248,21 @@
       try {
         var saved = JSON.parse(localStorage.getItem(key) || '{}');
         if (saved.b) input.value = saved.b;
-      } catch (_) { }
+      } catch (_) {}
       input.addEventListener('input', debounce(function () {
         localStorage.setItem(key, JSON.stringify({ b: input.value, at: Date.now() }));
       }, 300));
     });
 
-    // Voting (toggle) — threads (and comments if you add buttons with data-type="comment")
+    // Voting (toggle) — threads (and future comments if you add .vote with data-type="comment")
     qsa('.vote', container).forEach(function (el) {
-      el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0');
+      el.setAttribute('role', 'button');
+      el.setAttribute('tabindex', '0');
+
       function doVote() {
         if (!cid) { alert('Please log in to participate.'); return; }
-        if (el.__voteLock) return; el.__voteLock = true;
+        if (el.__voteLock) return;
+        el.__voteLock = true;
 
         var id = el.getAttribute('data-id');
         var targetType = el.getAttribute('data-type') || 'thread';
@@ -298,23 +271,27 @@
 
         api('/votes/toggle', {
           method: 'POST',
+          qs: { shop: SHOP },
           body: { targetType: targetType, targetId: id, customer_id: cid }
-        }).then(function (out) {
-          if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
-          var nowVoted = !!out.voted;
-          var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
-          var next = Math.max(0, current + delta);
-          el.setAttribute('data-voted', nowVoted ? '1' : '0');
-          el.textContent = '▲ ' + next;
-          if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
-        }).catch(function (e) { alert('Vote failed: ' + e.message); })
+        })
+          .then(function (out) {
+            if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
+            var nowVoted = !!out.voted;
+            var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
+            var next = Math.max(0, current + delta);
+            el.setAttribute('data-voted', nowVoted ? '1' : '0');
+            el.textContent = '▲ ' + next;
+            if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
+          })
+          .catch(function (e) { alert('Vote failed: ' + e.message); })
           .finally(function () { el.__voteLock = false; });
       }
+
       el.addEventListener('click', doVote);
       el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); doVote(); } });
     });
 
-    // Comment submit (top-level)
+    // Comment submit (top-level under each thread card)
     qsa('.comment-btn', container).forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (!cid) return alert('Please log in to participate.');
@@ -322,22 +299,22 @@
         var input = qs('.comment-input[data-tid="' + tid + '"]', container);
         var anon = qs('.comment-anon[data-tid="' + tid + '"]', container).checked;
         if (!input || !input.value.trim()) return;
+
+        var displayName = anon ? '' : getCustomerName();
+
         api('/comments', {
           method: 'POST',
-          body: {
-            threadId: tid,
-            body: input.value,
-            isAnonymous: anon,
-            customer_id: cid,
-            display_name: getDisplayName()
-          }
-        }).then(function (out) {
-          var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
-          localStorage.removeItem(key);
-          input.value = '';
-          alert((out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
-          loadCommentsForThread(tid);
-        }).catch(function (e) { alert('Failed: ' + e.message); });
+          qs: { shop: SHOP },
+          body: { threadId: tid, body: input.value, isAnonymous: anon, customer_id: cid, display_name: displayName }
+        })
+          .then(function (out) {
+            var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
+            localStorage.removeItem(key);
+            input.value = '';
+            alert((out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
+            loadCommentsForThread(tid);
+          })
+          .catch(function (e) { alert('Failed: ' + e.message); });
       });
     });
 
@@ -347,21 +324,26 @@
         if (!cid) return alert('Please log in to participate.');
         var tid = btn.getAttribute('data-tid');
         var reason = prompt('Why are you reporting this?'); if (!reason) return;
-        api('/reports', { method: 'POST', body: { targetType: 'thread', targetId: tid, reason: reason, customer_id: cid } })
+        api('/reports', { method: 'POST', qs: { shop: SHOP }, body: { targetType: 'thread', targetId: tid, reason: reason, customer_id: cid } })
           .then(function (out) { alert(out && out.success ? 'Reported' : 'Failed'); })
           .catch(function (e) { alert('Failed: ' + e.message); });
       });
     });
+
+    // Enable inline reply forms + send
+    wireCommentReplies(container, cid, SHOP);
   }
 
   /* ---------- categories ---------- */
   function loadCategories(sel, tMsg, SHOP) {
-    return api('/categories', { qs: { shop: SHOP } }).then(function (data) {
-      var opts = ['<option value="">All categories</option>'].concat((data.items || []).map(function (c) {
-        return '<option value="' + c._id + '">' + escapeHtml(c.name) + '</option>';
-      })).join('');
-      sel.innerHTML = opts;
-    }).catch(function (e) { setMsg(tMsg, 'Could not load categories: ' + e.message, true); });
+    return api('/categories', { qs: { shop: SHOP } })
+      .then(function (data) {
+        var opts = ['<option value="">All categories</option>'].concat((data.items || []).map(function (c) {
+          return '<option value="' + c._id + '">' + escapeHtml(c.name) + '</option>';
+        })).join('');
+        sel.innerHTML = opts;
+      })
+      .catch(function (e) { setMsg(tMsg, 'Could not load categories: ' + e.message, true); });
   }
 
   /* ---------- threads (with sort/period/date/search) ---------- */
@@ -376,10 +358,9 @@
     };
   }
 
-  /* ---------- load threads (and their comments) ---------- */
   function loadThreads(container, tMsg, cid, SHOP, root) {
     var ctl = getControls(root);
-    var params = {};
+    var params = { };
     if (ctl.category) params.categoryId = ctl.category;
     if (ctl.search) params.q = ctl.search;
     if (ctl.sort) params.sort = ctl.sort;
@@ -392,10 +373,8 @@
       .then(function (data) {
         var items = data.items || [];
         renderThreads(container, items);
-
-        // load approved comments per thread
+        // load approved comments for each thread
         items.forEach(function (t) { loadCommentsForThread(t._id); });
-
         wireThreadActions(container, cid, SHOP);
       })
       .catch(function (e) {
@@ -428,9 +407,7 @@
     }, 150);
 
     input.addEventListener('input', doSuggest);
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); hide(); load(); }
-    });
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); hide(); load(); } });
     input.addEventListener('blur', function () { setTimeout(hide, 150); });
 
     box.addEventListener('mousedown', function (e) {
@@ -440,11 +417,8 @@
       else if (text.startsWith('📂')) {
         var slug = (text.match(/\(([^)]+)\)\s*$/) || [])[1] || '';
         input.value = 'cat:' + slug + ' ';
-      } else {
-        input.value = text;
-      }
-      hide();
-      load();
+      } else { input.value = text; }
+      hide(); load();
     });
   }
 
@@ -457,16 +431,12 @@
     if (!title || !body || !toggleBtn) return;
 
     var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_thread';
-    // restore
     try {
       var saved = JSON.parse(localStorage.getItem(key) || '{}');
       if (saved.t) title.value = saved.t;
       if (saved.b) body.value = saved.b;
-    } catch (_) { }
-
-    var save = debounce(function () {
-      localStorage.setItem(key, JSON.stringify({ t: title.value, b: body.value, at: Date.now() }));
-    }, 300);
+    } catch (_) {}
+    var save = debounce(function () { localStorage.setItem(key, JSON.stringify({ t: title.value, b: body.value, at: Date.now() })); }, 300);
     title.addEventListener('input', save);
     body.addEventListener('input', save);
 
@@ -499,7 +469,7 @@
       var SHOP = getShop();
       var cid = getCustomerId();
 
-      // Private forum: require login
+      // private forum → require login
       if (!cid) {
         root.innerHTML = '<div class="community-box">Please <a href="/account/login">log in</a> to view and participate in the community.</div>';
         return;
@@ -509,7 +479,6 @@
         return;
       }
 
-      // Render UI
       template(root);
       var tMsg = qs('#t-msg', root);
       var sel = qs('#cat-filter', root);
@@ -517,7 +486,6 @@
 
       var loadNow = function () { return loadThreads(list, tMsg, cid, SHOP, root); };
 
-      // health check
       pingProxy().then(function (res) {
         if (!res.ok) {
           var status = (res.error && res.error.status) || 'unknown';
@@ -525,7 +493,6 @@
           return;
         }
 
-        // sort/period wiring
         var sortSel = qs('#forum-sort', root);
         var periodSel = qs('#forum-period', root);
         function togglePeriod() { periodSel.style.display = (sortSel.value === 'top') ? 'inline-block' : 'none'; }
@@ -533,16 +500,11 @@
         periodSel.addEventListener('change', loadNow);
         qs('#forum-apply', root).addEventListener('click', loadNow);
 
-        // suggest
         wireSuggest(root, SHOP, loadNow);
 
-        // categories + initial threads
         loadCategories(sel, tMsg, SHOP).then(function () { return loadNow(); });
-
-        // change category
         sel.addEventListener('change', loadNow);
 
-        // post new thread
         var draft = wireThreadDraft(root, SHOP, cid);
         qs('#thread-submit', root).addEventListener('click', function () {
           var title = (qs('#thread-title', root).value || '').trim();
@@ -551,28 +513,18 @@
           var tags = (qs('#thread-tags', root).value || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
           var anon = !!qs('#thread-anon', root).checked;
           var categoryId = sel.value || null;
+          var displayName = anon ? '' : getCustomerName();
 
-          api('/threads', {
-            method: 'POST',
-            body: {
-              title: title,
-              body: body,
-              tags: tags,
-              isAnonymous: anon,
-              categoryId: categoryId,
-              customer_id: cid,
-              display_name: getDisplayName()
-            }
-          }).then(function (out) {
-            setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'), !out || !out.success);
-            // clear fields + draft
-            qs('#thread-title', root).value = ''; qs('#thread-body', root).value = ''; qs('#thread-tags', root).value = '';
-            if (draft) draft.clear();
-            // ensure preview closed
-            var preview = qs('#thread-preview', root); var toggle = qs('#thread-preview-toggle', root);
-            if (preview.style.display === 'block') { preview.style.display = 'none'; qs('#thread-body', root).style.display = 'block'; toggle.textContent = 'Preview'; }
-            loadNow();
-          }).catch(function (e) { setMsg(tMsg, 'Failed: ' + e.message, true); });
+          api('/threads', { method: 'POST', qs: { shop: SHOP }, body: { title: title, body: body, tags: tags, isAnonymous: anon, categoryId: categoryId, customer_id: cid, display_name: displayName } })
+            .then(function (out) {
+              setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'), !out || !out.success);
+              qs('#thread-title', root).value = ''; qs('#thread-body', root).value = ''; qs('#thread-tags', root).value = '';
+              if (draft) draft.clear();
+              var preview = qs('#thread-preview', root); var toggle = qs('#thread-preview-toggle', root);
+              if (preview.style.display === 'block') { preview.style.display = 'none'; qs('#thread-body', root).style.display = 'block'; toggle.textContent = 'Preview'; }
+              loadNow();
+            })
+            .catch(function (e) { setMsg(tMsg, 'Failed: ' + e.message, true); });
         });
       });
     }
