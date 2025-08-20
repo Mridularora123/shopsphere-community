@@ -66,12 +66,13 @@
   function getShop() {
     var m = document.querySelector('meta[name="forum-shop"]');
     if (m && m.content) return normalizeShop(m.content);
-    if (window.__FORUM_SHOP) return normalizeShop(window.__FORUM_SHOP);
+    if (window.__FORUM_SHOP__) return normalizeShop(window.__FORUM_SHOP__); // ← double underscore
     try { if (window.Shopify && Shopify.shop) return normalizeShop(Shopify.shop); } catch (_) { }
     var h = (location.hostname || '').toLowerCase();
     if (h.endsWith('.myshopify.com')) return normalizeShop(h);
     return '';
   }
+
   function getCustomerId() {
     var m = document.querySelector('meta[name="forum-customer-id"]');
     if (m && m.content) return m.content.trim();
@@ -106,8 +107,9 @@
       if (v == null || v === '') return;
       parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v));
     });
-    return parts.length ? ('?' + parts.join('&)') : '';
+    return parts.length ? ('?' + parts.join('&')) : '';
   }
+
   function api(path, opts) {
     opts = opts || {};
     var base = (window.__FORUM_PROXY__ || '/apps/community') + path;
@@ -827,8 +829,13 @@
           if (url) cb(url, 'image');
         });
 
-        wireThreadDraft(root, SHOP, cid); // keep autosave/preview
+        // ✅ actually capture the draft helper
+        draft = wireThreadDraft(root, SHOP, cid);
+      }).catch(function () {
+        // If Toast fails to load, still enable autosave/preview for fallback
+        draft = wireThreadDraft(root, SHOP, cid);
       });
+
 
 
       /* ===== 🔔 Notifications wiring (INSIDE mount so root/cid exist) ===== */
