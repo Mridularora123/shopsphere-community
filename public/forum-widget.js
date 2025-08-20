@@ -235,12 +235,14 @@
   function renderThreads(container, items, cid) {
     var now = new Date();
     container.insertAdjacentHTML('beforeend', (items || []).map(function (t) {
-      var closedBadge = t.closed ? '<span class="badge">Closed</span>' : '';
+      var isClosed = !!(t.closedAt || t.closed);
+      var closedBadge = isClosed ? '<span class="badge">Closed</span>' : '';
       var pinnedBadge = t.pinned ? '<span class="badge">Pinned</span>' : '';
       var votes = typeof t.votes === 'number' ? t.votes : 0;
+
       var replySection = '';
-      if (t.closed || t.locked) {
-        replySection = '<div class="community-meta">Thread is ' + (t.closed ? 'closed' : 'locked') + ' — new replies are disabled.</div>';
+      if (isClosed || t.locked) {
+        replySection = '<div class="community-meta">Thread is ' + (isClosed ? 'closed' : 'locked') + ' — new replies are disabled.</div>';
       } else {
         replySection = [
           '<div class="community-row">',
@@ -263,7 +265,7 @@
         threadActionsHTML(t, cid),
         '  <div id="poll-' + t._id + '" class="community-poll" style="margin:8px 0"></div>',
         '  <div id="comments-' + t._id + '"></div>',
-           replySection,
+        replySection,
         '</div>'
       ].join('');
     }).join(''));
@@ -822,13 +824,13 @@
         var periodSel = qs('#forum-period', root);
         function togglePeriod() { periodSel.style.display = (sortSel.value === 'top') ? 'inline-block' : 'none'; }
         sortSel.addEventListener('change', function () { togglePeriod(); loadNow(); });
-        periodSel.addEventListener('change', function(){ loadNow(); });
-        qs('#forum-apply', root).addEventListener('click', function(){ loadNow(); });
+        periodSel.addEventListener('change', function () { loadNow(); });
+        qs('#forum-apply', root).addEventListener('click', function () { loadNow(); });
 
         wireSuggest(root, SHOP, loadNow);
 
         loadCategories(sel, tMsg, SHOP).then(function () { return loadNow(); });
-        sel.addEventListener('change', function(){ loadNow(); });
+        sel.addEventListener('change', function () { loadNow(); });
 
         var draft = wireThreadDraft(root, SHOP, cid);
         qs('#thread-submit', root).addEventListener('click', function () {
@@ -868,9 +870,9 @@
                 author: { customerId: cid },
                 createdAt: new Date().toISOString(),
                 pinned: false,
-                closed: false,
+                closedAt: null, 
                 votes: 0,
-                editableUntil: new Date(Date.now() + 15*60*1000).toISOString()
+                editableUntil: new Date(Date.now() + 15 * 60 * 1000).toISOString()
               };
               renderThreads(list, [tmp], cid);
               wireThreadActions(list, cid, SHOP);

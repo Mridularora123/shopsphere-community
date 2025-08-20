@@ -15,7 +15,7 @@ const ThreadSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending','approved','rejected','closed'], default: 'pending', index: true },
   pinned: { type: Boolean, default: false, index: true },
   locked: { type: Boolean, default: false },
-  closedAt: Date,
+  closedAt: { type: Date },
 
   tags: [{ type: String, index: true }],      // store tag slugs/labels
   votes: { type: Number, default: 0, index: true },
