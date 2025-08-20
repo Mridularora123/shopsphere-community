@@ -126,7 +126,7 @@ router.get('/', async (_req, res, next) => {
   <a href="/admin/reports">Reports</a> ·
   <a href="/admin/categories">Categories</a> ·
   <a href="/admin/polls">Polls</a> ·
-  <a href="/admin/export?type=threads">Export CSV</a> ·
+  <a href="/admin/exports">Export CSV</a> ·
   <a href="/admin/notifications">Notifications</a>
   <a href="/admin/announce">Announcements</a>
 </p>
@@ -934,6 +934,58 @@ router.post('/announce', async (req, res, next) => {
   } catch (e) {
     next(e);
   }
+});
+
+// --- Simple CSV export UI ---
+// GET /admin/exports
+router.get('/exports', (req, res) => {
+  const shop = (req.query.shop || '').trim();
+  res.type('html').send(`<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>CSV Exports</title></head>
+<body style="font-family:system-ui,Segoe UI,Roboto,Arial;max-width:860px;margin:24px auto">
+  <h1>CSV Exports</h1>
+
+  <form id="xform" style="display:grid;gap:10px;max-width:520px">
+    <label>Shop (optional)
+      <input name="shop" value="${shop}" placeholder="your-shop.myshopify.com" style="width:100%">
+    </label>
+    <div style="display:flex;gap:8px">
+      <label style="flex:1">From (YYYY-MM-DD)
+        <input name="from" type="date" style="width:100%">
+      </label>
+      <label style="flex:1">To (YYYY-MM-DD)
+        <input name="to" type="date" style="width:100%">
+      </label>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+      <button type="button" onclick="go('threads')">Export Threads CSV</button>
+      <button type="button" onclick="go('comments')">Export Comments CSV</button>
+      <button type="button" onclick="go('votes')">Export Votes CSV</button>
+      <button type="button" onclick="go('polls')">Export Polls CSV</button>
+    </div>
+  </form>
+
+  <p style="margin-top:16px"><a href="/admin">Back</a></p>
+
+  <script>
+    function go(type) {
+      var f = document.getElementById('xform');
+      var shop = (f.shop.value || '').trim();
+      var from = (f.from.value || '').trim();
+      var to   = (f.to.value || '').trim();
+
+      var url = '/admin/export?type=' + encodeURIComponent(type);
+      if (shop) url += '&shop=' + encodeURIComponent(shop);
+      if (from) url += '&from=' + encodeURIComponent(from);
+      if (to)   url += '&to='   + encodeURIComponent(to);
+
+      window.open(url, '_blank');
+    }
+  </script>
+</body>
+</html>`);
 });
 
 
