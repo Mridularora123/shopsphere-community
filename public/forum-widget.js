@@ -44,6 +44,7 @@
       '.community-meta{color:#666;font-size:12px}',
       '.badge{display:inline-block;background:#eef;border:1px solid #dde;padding:2px 6px;border-radius:6px;font-size:11px;margin-left:6px}',
       '.vote.voted{font-weight:700}',
+      'h2, h1, ul {margin: 0;}',
       '.reply-form .community-textarea{min-height:60px}',
       '.comment-actions{display:inline-flex;gap:6px;margin-left:8px}',
       '.s-item:hover{background:#f6f6f6}',
