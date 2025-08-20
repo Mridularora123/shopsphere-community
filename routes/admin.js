@@ -991,6 +991,32 @@ router.get('/exports', (req, res) => {
 
 /* -------------------------- 4.3 CSV Exports ----------------------------- */
 // GET /admin/export?type=threads|comments|votes|polls&shop=...&from=YYYY-MM-DD&to=YYYY-MM-DD
+// --- helper: normalize values for CSV (ObjectId/Buffer/Date) ---
+function normalizeForCsv(v) {
+  if (v === null || v === undefined) return v;
+
+  // Mongo ObjectId (works without importing mongoose)
+  if (typeof v?.toHexString === 'function') return v.toHexString();
+  if (v?._bsontype === 'ObjectID' && typeof v?.toString === 'function') return v.toString();
+
+  // Buffers or { type:'Buffer', data:[...] }
+  if (Buffer.isBuffer(v)) return v.toString('hex');
+  if (v?.type === 'Buffer' && Array.isArray(v.data)) return Buffer.from(v.data).toString('hex');
+
+  // Dates
+  if (v instanceof Date) return v.toISOString();
+
+  // Arrays / plain objects → recurse
+  if (Array.isArray(v)) return v.map(normalizeForCsv);
+  if (typeof v === 'object') {
+    const out = {};
+    for (const k of Object.keys(v)) out[k] = normalizeForCsv(v[k]);
+    return out;
+  }
+
+  return v;
+}
+
 router.get('/export', async (req, res, next) => {
   try {
     const { type = 'threads', shop, from, to } = req.query;
@@ -1019,10 +1045,14 @@ router.get('/export', async (req, res, next) => {
         return res.status(400).send('Invalid type');
     }
 
+    // ✅ Make ObjectIds readable & remove Buffer columns
+    docs = docs.map(d => normalizeForCsv(d));
+
     const csv = toCSV(docs);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${type}.csv"`);
-    res.send(csv);
+    // (optional) prepend BOM so Excel opens UTF-8 cleanly:
+    res.send('\uFEFF' + csv);
   } catch (e) {
     next(e);
   }
