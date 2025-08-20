@@ -30,7 +30,7 @@
   function isDesignMode() { try { return !!(window.Shopify && Shopify.designMode); } catch (_) { return false; } }
   var debounce = function (fn, ms) { var t; return function () { var a = arguments; clearTimeout(t); t = setTimeout(function () { fn.apply(null, a); }, ms || 200); }; };
 
-  /* ---------- minimal styles ---------- */
+  /* ---------- inject minimal styles (responsive polish for TC-103) ---------- */
   function injectStyles() {
     if (document.getElementById('community-style')) return;
     var css = [
@@ -47,11 +47,6 @@
       '.reply-form .community-textarea{min-height:60px}',
       '.comment-actions{display:inline-flex;gap:6px;margin-left:8px}',
       '.s-item:hover{background:#f6f6f6}',
-      '.thread-body img,.comment-body img{max-width:100%;height:auto;border-radius:8px;display:block;margin:8px 0}',
-      '.thread-body a,.comment-body a{color:#0a66c2;text-decoration:underline}',
-      /* make sure editor area is visible even if Toast UI fails */
-      '#thread-editor{min-height:300px;border:1px solid #ddd;border-radius:8px;background:#fff;display:block}',    // ⬅ add display:block
-      '#thread-editor:empty{display:block}',  // ⬅ explicitly defeat Dawn’s div:empty rule
       '@media (max-width:600px){.community-row{flex-wrap:wrap}.community-btn{width:auto}.community-input{min-width:180px}}'
     ].join('');
     var style = document.createElement('style');
@@ -60,20 +55,23 @@
     document.head.appendChild(style);
   }
 
-  /* ---------- shop & customer ---------- */
+  /* ---------- robust shop & customer detection ---------- */
   function normalizeShop(s) {
-    return String(s || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').trim();
+    return String(s || '')
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/.*$/, '')
+      .trim();
   }
   function getShop() {
     var m = document.querySelector('meta[name="forum-shop"]');
     if (m && m.content) return normalizeShop(m.content);
-    if (window.__FORUM_SHOP__) return normalizeShop(window.__FORUM_SHOP__); // ← double underscore
+    if (window.__FORUM_SHOP) return normalizeShop(window.__FORUM_SHOP);
     try { if (window.Shopify && Shopify.shop) return normalizeShop(Shopify.shop); } catch (_) { }
     var h = (location.hostname || '').toLowerCase();
     if (h.endsWith('.myshopify.com')) return normalizeShop(h);
     return '';
   }
-
   function getCustomerId() {
     var m = document.querySelector('meta[name="forum-customer-id"]');
     if (m && m.content) return m.content.trim();
@@ -95,7 +93,7 @@
     return '';
   }
 
-  /* ---------- fetch helpers ---------- */
+  /* ---------- fetch helpers with query support ---------- */
   function withTimeout(p, ms) {
     var t; var timeout = new Promise(function (_, rej) { t = setTimeout(function () { rej(new Error('Request timed out')); }, ms || TIMEOUT_MS); });
     return Promise.race([p, timeout]).finally(function () { clearTimeout(t); });
@@ -110,7 +108,6 @@
     });
     return parts.length ? ('?' + parts.join('&')) : '';
   }
-
   function api(path, opts) {
     opts = opts || {};
     var base = (window.__FORUM_PROXY__ || '/apps/community') + path;
@@ -136,30 +133,7 @@
     return api('/ping').then(function (j) { return { ok: true, json: j }; }, function (e) { return { ok: false, error: e }; });
   }
 
-  /* ---------- Markdown renderer ---------- */
-  function renderMarkdown(md) {
-    let s = escapeHtml(md || '');
-    s = s.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, (m, alt, url) =>
-      `<img src="${url}" alt="${escapeHtml(alt)}" loading="lazy">`
-    );
-    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, text, url) =>
-      `<a href="${url}" target="_blank" rel="nofollow noopener">${escapeHtml(text)}</a>`
-    );
-    s = s.replace(/(^|\s)(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp))(?!\))/gi,
-      (m, lead, url) => `${lead}<img src="${url}" alt="" loading="lazy">`
-    );
-    s = s.replace(/^\s*###\s+(.+)$/gm, '<h3>$1</h3>');
-    s = s.replace(/^\s*##\s+(.+)$/gm, '<h2>$1</h2>');
-    s = s.replace(/^\s*#\s+(.+)$/gm, '<h1>$1</h1>');
-    s = s.replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>');
-    s = s.replace(/(?:<li>.*<\/li>\s*)+/g, function (m) { return `<ul>${m}</ul>`; });
-    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    s = s.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>');
-    return `<p>${s}</p>`;
-  }
-
-  /* ---------- toolbar for textarea fallback ---------- */
+  /* ---------- Markdown helpers / simple RTE ---------- */
   function surroundSelection(textarea, before, after) {
     textarea.focus();
     var start = textarea.selectionStart || 0;
@@ -177,6 +151,7 @@
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', 'Formatting toolbar');
     bar.style.margin = '8px 0';
+
     function btn(text, title, onClick) {
       var b = document.createElement('button');
       b.className = 'community-btn';
@@ -186,6 +161,7 @@
       b.addEventListener('click', function () { onClick(target); });
       return b;
     }
+
     bar.appendChild(btn('H1', 'Heading', function (ta) { surroundSelection(ta, '# ', ''); }));
     bar.appendChild(btn('H2', 'Subheading', function (ta) { surroundSelection(ta, '## ', ''); }));
     bar.appendChild(btn('• List', 'Bulleted list', function (ta) { surroundSelection(ta, '- ', ''); }));
@@ -232,10 +208,9 @@
       '    <select id="cat-filter" class="community-input" aria-label="Category filter"></select>',
       '    <input id="thread-title" class="community-input" aria-label="Thread title" placeholder="Start a new thread (title)"/>',
       '  </div>',
-      '  <div class="community-meta" style="margin:6px 0 4px">Description</div>',
       '  <div id="rte-bar"></div>',
-      '  <div id="thread-editor" class="community-textarea"></div>',
-      '  <pre id="thread-preview" style="display:none;background:#fafafa;border:1px solid #eee;padding:10px;border-radius:6px;white-space:normal"></pre>',
+      '  <textarea id="thread-body" class="community-textarea" rows="4" placeholder="Write details... Supports Markdown for headings, lists, links, and images."></textarea>',
+      '  <pre id="thread-preview" style="display:none;background:#fafafa;border:1px solid #eee;padding:10px;border-radius:6px;white-space:pre-wrap"></pre>',
       '  <div class="community-row">',
       '    <input id="thread-tags" class="community-input" aria-label="Tags" placeholder="tags (comma separated)"/>',
       '    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="thread-anon" aria-label="Post anonymously"/><span class="community-meta">Anonymous</span></label>',
@@ -249,9 +224,14 @@
       '  </div>',
       '</div>'
     ].join('\n');
+
+    // mount simple RTE toolbar
+    var body = qs('#thread-body', root);
+    var bar = makeToolbar(body);
+    qs('#rte-bar', root).appendChild(bar);
   }
 
-  /* ---------- notifications UI ---------- */
+  /* ---------- notif item renderers ---------- */
   function notifItemHTML(n) {
     var when = new Date(n.createdAt).toLocaleString();
     var body = '';
@@ -284,15 +264,15 @@
     if (!canEdit) return '';
     return [
       '<div class="community-row" style="margin-top:6px">',
-      '  <button class="community-btn t-edit" data-id="' + t._id + '">Edit</button>',
-      '  <button class="community-btn t-delete" data-id="' + t._id + '">Delete</button>',
+      '  <button class="community-btn t-edit" data-id="' + t._id + '" aria-label="Edit thread">Edit</button>',
+      '  <button class="community-btn t-delete" data-id="' + t._id + '" aria-label="Delete thread">Delete</button>',
       '</div>',
       '<div class="t-edit-area" id="t-edit-' + t._id + '" style="display:none;margin-top:6px">',
       '  <input class="community-input t-edit-title" value="' + escapeHtml(t.title) + '"/>',
       '  <textarea class="community-textarea t-edit-body" rows="3">' + escapeHtml(t.body || '') + '</textarea>',
       '  <div class="community-row">',
-      '    <button class="community-btn t-save" data-id="' + t._id + '">Save</button>',
-      '    <button class="community-btn t-cancel" data-id="' + t._id + '">Cancel</button>',
+      '    <button class="community-btn t-save" data-id="' + t._id + '" aria-label="Save edit">Save</button>',
+      '    <button class="community-btn t-cancel" data-id="' + t._id + '" aria-label="Cancel edit">Cancel</button>',
       '  </div>',
       '  <div class="community-meta">You can edit/delete for a limited time.</div>',
       '</div>'
@@ -323,10 +303,10 @@
         '<div class="community-card" role="listitem">',
         '  <div style="display:flex;justify-content:space-between;align-items:center">',
         '    <div><strong>' + escapeHtml(t.title) + '</strong> ' + pinnedBadge + ' ' + closedBadge + '</div>',
-        '    <button class="vote" data-type="thread" data-id="' + t._id + '" data-voted="0" style="cursor:pointer;background:none;border:none">▲ ' + votes + '</button>',
+        '    <button class="vote" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0" style="cursor:pointer;background:none;border:none">▲ ' + votes + '</button>',
         '  </div>',
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
-        '  <div class="thread-body">' + renderMarkdown(t.body || '') + '</div>',
+        '  <div>' + escapeHtml(t.body || '') + '</div>',
         '  <div style="margin:6px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
         threadActionsHTML(t, cid),
         '  <div id="poll-' + t._id + '" class="community-poll" style="margin:8px 0"></div>',
@@ -337,13 +317,14 @@
     }).join(''));
   }
 
-  /* ---------- comments ---------- */
+  /* ---------- comments (threaded) ---------- */
   function renderCommentTree(list, cid) {
     function one(c, depth) {
       var pad = 'style="margin-left:' + (depth * 16) + 'px"';
       var anon = c && c.author && c.author.isAnonymous;
       var name = anon ? 'anon' : (c && c.author && (c.author.displayName || c.author.name) || 'anon');
       var safeName = escapeHtml(name);
+      var safeBody = escapeHtml(c.body || '');
       var votes = typeof c.votes === 'number' ? c.votes : 0;
       var selfActions = '';
       var canDel = cid && c.author && String(c.author.customerId || '') === String(cid || '') &&
@@ -354,8 +335,8 @@
       var replyBtn = '<button class="reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '" style="margin-left:6px">Reply</button>';
       var self =
         '<div class="community-comment" ' + pad + '>' +
-        '<button class="vote" data-type="comment" data-id="' + c._id + '" data-voted="0" style="cursor:pointer;background:none;border:none;margin-right:6px">▲ ' + votes + '</button>' +
-        '<b>' + safeName + '</b>: <span class="comment-body">' + renderMarkdown(c.body || '') + '</span>' +
+        '<button class="vote" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="cursor:pointer;background:none;border:none;margin-right:6px">▲ ' + votes + '</button>' +
+        '<b>' + safeName + '</b>: ' + safeBody +
         ' <span class="comment-actions">' + replyBtn + ' ' + selfActions + '</span>' +
         '</div>';
       var kids = (c.children || []).map(function (k) { return one(k, depth + 1); }).join('');
@@ -376,12 +357,14 @@
       .catch(function (e) { box.innerHTML = '<div class="community-meta">Failed: ' + e.message + '</div>'; });
   }
 
-  /* ---------- polls ---------- */
   function renderPollHTML(poll, canShowCounts) {
     var name = 'poll-' + poll._id;
     var type = poll.multipleAllowed ? 'checkbox' : 'radio';
+
     var opts = (poll.options || []).map(function (o) {
-      var count = (canShowCounts && typeof o.votes === 'number') ? ' <span class="community-meta">(' + o.votes + ')</span>' : '';
+      var count = (canShowCounts && typeof o.votes === 'number')
+        ? ' <span class="community-meta">(' + o.votes + ')</span>'
+        : '';
       return (
         '<label class="community-poll-option" style="display:block;margin:4px 0">' +
         '<input type="' + type + '" name="' + name + '" value="' + o.id + '"/>' +
@@ -389,37 +372,52 @@
         '</label>'
       );
     }).join('');
+
     var closed = poll.status === 'closed';
     var disabled = closed ? 'disabled' : '';
     var footer = closed
       ? '<div class="community-meta">Poll closed</div>'
       : '<button class="community-btn poll-vote-btn" ' + disabled + '>Vote</button>';
+
     return (
       '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
       '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(poll.question || 'Poll') + '</div>' +
-      opts + footer +
+      opts +
+      footer +
       '</div>'
     );
   }
+
   function loadPoll(threadId, SHOP, cid) {
     var box = document.getElementById('poll-' + threadId);
     if (!box) return;
+
     var votedKey = 'poll_voted_' + SHOP + '_' + threadId;
     var viewerHasVoted = localStorage.getItem(votedKey) === '1';
+
     api('/polls/' + encodeURIComponent(threadId), { qs: { viewerHasVoted: viewerHasVoted ? 'true' : 'false' } })
       .then(function (res) {
         if (!res || !res.success || !res.poll) { box.innerHTML = ''; return; }
         var poll = res.poll;
-        var canShowCounts = viewerHasVoted || poll.showResults === 'always' || poll.status === 'closed';
+
+        var canShowCounts =
+          viewerHasVoted || poll.showResults === 'always' || poll.status === 'closed';
+
         box.innerHTML = renderPollHTML(poll, canShowCounts);
+
         var voteBtn = box.querySelector('.poll-vote-btn');
         if (!voteBtn || poll.status === 'closed') return;
+
         voteBtn.addEventListener('click', function () {
           if (!cid) { alert('Please log in to vote.'); return; }
+
           var inputs = box.querySelectorAll('input[name="poll-' + poll._id + '"]:checked');
           var chosen = Array.prototype.map.call(inputs, function (el) { return el.value; });
+
           if (!chosen.length) { alert('Select at least one option'); return; }
+
           voteBtn.disabled = true;
+
           api('/polls/' + encodeURIComponent(threadId) + '/vote', {
             method: 'POST',
             body: { optionIds: chosen, customer_id: cid }
@@ -436,7 +434,7 @@
       .catch(function () { box.innerHTML = ''; });
   }
 
-  /* ---------- inline replies ---------- */
+  /* ---------- reply UI inside comments ---------- */
   function wireCommentReplies(container, cid, SHOP) {
     container.addEventListener('click', function (ev) {
       var del = ev.target.closest('.c-delete');
@@ -476,16 +474,28 @@
       ].join('');
       btn.insertAdjacentElement('afterend', f);
 
-      f.querySelector('.do-cancel').addEventListener('click', function () { f.remove(); });
+      f.querySelector('.do-cancel').addEventListener('click', function () {
+        f.remove();
+      });
+
       f.querySelector('.do-send').addEventListener('click', function () {
         var txt = (f.querySelector('textarea').value || '').trim();
         var anon = !!f.querySelector('.reply-anon').checked;
         if (!txt) return;
+
         var displayName = anon ? '' : getCustomerName();
         var tid = btn.closest('.community-card').querySelector('.comment-input')?.getAttribute('data-tid');
+
         api('/comments', {
           method: 'POST',
-          body: { threadId: tid, parentId: parentId, body: txt, isAnonymous: anon, customer_id: cid, display_name: displayName }
+          body: {
+            threadId: tid,
+            parentId: parentId,
+            body: txt,
+            isAnonymous: anon,
+            customer_id: cid,
+            display_name: displayName
+          }
         })
           .then(function () {
             var pending = document.createElement('div');
@@ -499,27 +509,41 @@
     });
   }
 
-  /* ---------- wire actions on threads ---------- */
+  /* ---------- wire actions on threads after render ---------- */
   function wireThreadActions(container, cid, SHOP) {
+    // Restore & autosave comment drafts per thread
     qsa('.comment-input', container).forEach(function (input) {
       var tid = input.getAttribute('data-tid');
       var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
-      try { var saved = JSON.parse(localStorage.getItem(key) || '{}'); if (saved.b) input.value = saved.b; } catch (_) { }
+      try {
+        var saved = JSON.parse(localStorage.getItem(key) || '{}');
+        if (saved.b) input.value = saved.b;
+      } catch (_) { }
       input.addEventListener('input', debounce(function () {
         localStorage.setItem(key, JSON.stringify({ b: input.value, at: Date.now() }));
       }, 300));
     });
 
+    // Voting (toggle) — threads & comments
     qsa('.vote', container).forEach(function (el) {
+      el.setAttribute('role', 'button');
+      el.setAttribute('tabindex', '0');
+      el.setAttribute('aria-pressed', 'false');
+
       function doVote() {
         if (!cid) { alert('Please log in to participate.'); return; }
         if (el.__voteLock) return;
         el.__voteLock = true;
+
         var id = el.getAttribute('data-id');
         var targetType = el.getAttribute('data-type') || 'thread';
         var current = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10);
         var wasVoted = el.getAttribute('data-voted') === '1';
-        api('/votes/toggle', { method: 'POST', body: { targetType: targetType, targetId: id, customer_id: cid } })
+
+        api('/votes/toggle', {
+          method: 'POST',
+          body: { targetType: targetType, targetId: id, customer_id: cid }
+        })
           .then(function (out) {
             if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
             var nowVoted = !!out.voted;
@@ -533,10 +557,12 @@
           .catch(function (e) { alert('Vote failed: ' + e.message); })
           .finally(function () { el.__voteLock = false; });
       }
+
       el.addEventListener('click', doVote);
       el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); doVote(); } });
     });
 
+    // Comment submit (top-level under each thread card) – optimistic
     qsa('.comment-btn', container).forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (!cid) return alert('Please log in to participate.');
@@ -544,8 +570,10 @@
         var input = qs('.comment-input[data-tid="' + tid + '"]', container);
         var anon = qs('.comment-anon[data-tid="' + tid + '"]', container).checked;
         if (!input || !input.value.trim()) return;
+
         var displayName = anon ? '' : getCustomerName();
         var text = input.value;
+
         var box = document.getElementById('comments-' + tid);
         if (box) {
           var pending = document.createElement('div');
@@ -553,7 +581,17 @@
           pending.textContent = 'Comment submitted for review.';
           box.appendChild(pending);
         }
-        api('/comments', { method: 'POST', body: { threadId: tid, body: text, isAnonymous: anon, customer_id: cid, display_name: displayName } })
+
+        api('/comments', {
+          method: 'POST',
+          body: {
+            threadId: tid,
+            body: text,
+            isAnonymous: anon,
+            customer_id: cid,
+            display_name: displayName
+          }
+        })
           .then(function () {
             var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
             localStorage.removeItem(key);
@@ -563,6 +601,19 @@
       });
     });
 
+    // Report
+    qsa('.report-btn', container).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!cid) return alert('Please log in to participate.');
+        var tid = btn.getAttribute('data-tid');
+        var reason = prompt('Why are you reporting this?'); if (!reason) return;
+        api('/reports', { method: 'POST', body: { targetType: 'thread', targetId: tid, reason: reason, customer_id: cid } })
+          .then(function (out) { alert(out && out.success ? 'Reported' : 'Failed'); })
+          .catch(function (e) { alert('Failed: ' + e.message); });
+      });
+    });
+
+    // Thread edit/delete within window
     container.addEventListener('click', function (ev) {
       var tEdit = ev.target.closest('.t-edit');
       var tDelete = ev.target.closest('.t-delete');
@@ -590,8 +641,7 @@
           .then(function (out) {
             if (!out || !out.success) throw new Error((out && out.message) || 'Edit failed');
             card.querySelector('strong').textContent = title;
-            var bodyEl = card.querySelector('.thread-body');
-            if (bodyEl) bodyEl.innerHTML = renderMarkdown(body);
+            card.querySelector('div:nth-child(3)').textContent = body;
             qs('#t-edit-' + ids, container).style.display = 'none';
           })
           .catch(function (e) { alert('Edit failed: ' + e.message); });
@@ -610,6 +660,7 @@
       }
     });
 
+    // Inline replies (and comment delete) handler
     wireCommentReplies(container, cid, SHOP);
   }
 
@@ -625,7 +676,7 @@
       .catch(function (e) { setMsg(tMsg, 'Could not load categories: ' + e.message, true); });
   }
 
-  /* ---------- filters + thread load ---------- */
+  /* ---------- threads (with sort/period/date/search + infinite scroll) ---------- */
   function getControls(root) {
     return {
       category: qs('#cat-filter', root).value || '',
@@ -665,7 +716,10 @@
         var items = data.items || [];
         loading(container, false);
         renderThreads(container, items, cid);
-        items.forEach(function (t) { loadCommentsForThread(t._id, cid); loadPoll(t._id, SHOP, cid); });
+        items.forEach(function (t) {
+          loadCommentsForThread(t._id, cid);
+          loadPoll(t._id, SHOP, cid);
+        });
         wireThreadActions(container, cid, SHOP);
 
         container.__state.next = data.next || null;
@@ -737,40 +791,29 @@
   /* ---------- thread draft autosave + preview ---------- */
   function wireThreadDraft(root, SHOP, cid) {
     var title = qs('#thread-title', root);
+    var body = qs('#thread-body', root);
     var preview = qs('#thread-preview', root);
     var toggleBtn = qs('#thread-preview-toggle', root);
-    var ed = root.__threadEditor || null;
-    var editorHost = qs('#thread-editor', root) || qs('#thread-body', root);
-    if (!title || !editorHost || !toggleBtn) return { clear: function () { } };
+    if (!title || !body || !toggleBtn) return;
 
     var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_thread';
     try {
       var saved = JSON.parse(localStorage.getItem(key) || '{}');
       if (saved.t) title.value = saved.t;
-      if (saved.b) {
-        if (ed && ed.setMarkdown) ed.setMarkdown(saved.b);
-        else { var ta = qs('#thread-body', root); if (ta) ta.value = saved.b; }
-      }
+      if (saved.b) body.value = saved.b;
     } catch (_) { }
-
-    function curBody() {
-      return ed && ed.getMarkdown ? ed.getMarkdown() : ((qs('#thread-body', root) && qs('#thread-body', root).value) || '');
-    }
-    var save = debounce(function () {
-      localStorage.setItem(key, JSON.stringify({ t: title.value, b: curBody(), at: Date.now() }));
-    }, 300);
+    var save = debounce(function () { localStorage.setItem(key, JSON.stringify({ t: title.value, b: body.value, at: Date.now() })); }, 300);
     title.addEventListener('input', save);
-    if (ed && ed.on) ed.on('change', save); else { var ta = qs('#thread-body', root); if (ta) ta.addEventListener('input', save); }
+    body.addEventListener('input', save);
 
     var on = false;
     toggleBtn.addEventListener('click', function () {
       on = !on;
       toggleBtn.textContent = on ? 'Edit' : 'Preview';
       toggleBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-      editorHost.style.display = on ? 'none' : 'block';
+      body.style.display = on ? 'none' : 'block';
       preview.style.display = on ? 'block' : 'none';
-      var md = (title.value ? ('# ' + title.value + '\n\n') : '') + curBody();
-      preview.innerHTML = renderMarkdown(md);
+      preview.textContent = (title.value ? ('# ' + title.value + '\n\n') : '') + (body.value || '');
     });
 
     return { clear: function () { localStorage.removeItem(key); } };
@@ -804,40 +847,6 @@
       }
 
       template(root);
-
-      /* ===== Initialize Toast UI Editor right after template ===== */
-      var draft = null;
-      ensureToastEditor().then(function () {
-        const ed = new toastui.Editor({
-          el: qs('#thread-editor', root),
-          height: '320px',
-          initialEditType: 'wysiwyg',
-          previewStyle: 'tab',
-          usageStatistics: false,
-          placeholder: 'Write details... Supports headings, lists, links, and images.',
-          toolbarItems: [
-            ['heading', 'bold', 'italic', 'underline', 'strike'],
-            ['ul', 'ol', 'task'],
-            ['link', 'image'],
-            ['quote', 'code', 'codeblock']
-          ]
-        });
-        root.__threadEditor = ed;
-
-        ed.removeHook('addImageBlobHook');
-        ed.addHook('addImageBlobHook', function (blob, cb) {
-          const url = prompt('Paste image URL (https://)');
-          if (url) cb(url, 'image');
-        });
-
-        // ✅ actually capture the draft helper
-        draft = wireThreadDraft(root, SHOP, cid);
-      }).catch(function () {
-        // If Toast fails to load, still enable autosave/preview for fallback
-        draft = wireThreadDraft(root, SHOP, cid);
-      });
-
-
 
       /* ===== 🔔 Notifications wiring (INSIDE mount so root/cid exist) ===== */
       var badge = qs('#notif-badge', root);
@@ -908,13 +917,11 @@
         loadCategories(sel, tMsg, SHOP).then(function () { return loadNow(); });
         sel.addEventListener('change', function () { loadNow(); });
 
+        var draft = wireThreadDraft(root, SHOP, cid);
         qs('#thread-submit', root).addEventListener('click', function () {
           var title = (qs('#thread-title', root).value || '').trim();
           if (!title) return setMsg(tMsg, 'Title required', true);
-          var body = (root.__threadEditor
-            ? root.__threadEditor.getMarkdown()
-            : (qs('#thread-body', root) ? qs('#thread-body', root).value : '')
-          ).trim();
+          var body = (qs('#thread-body', root).value || '').trim();
           var tags = (qs('#thread-tags', root).value || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
           var anon = !!qs('#thread-anon', root).checked;
           var categoryId = sel.value || null;
@@ -934,21 +941,10 @@
           })
             .then(function (out) {
               setMsg(tMsg, (out && out.message) || (out && out.success ? 'Submitted for review' : 'Failed'));
-              qs('#thread-title', root).value = '';
-              if (root.__threadEditor) root.__threadEditor.setMarkdown(''); else { var ta = qs('#thread-body', root); if (ta) ta.value = ''; }
-              qs('#thread-tags', root).value = '';
+              qs('#thread-title', root).value = ''; qs('#thread-body', root).value = ''; qs('#thread-tags', root).value = '';
               if (draft) draft.clear();
-
-              var preview = qs('#thread-preview', root);
-              var toggle = qs('#thread-preview-toggle', root);
-              var editorHost = qs('#thread-editor', root) || qs('#thread-body', root);
-              if (preview && toggle && editorHost && preview.style.display === 'block') {
-                preview.style.display = 'none';
-                editorHost.style.display = 'block';
-                toggle.textContent = 'Preview';
-                toggle.setAttribute('aria-pressed', 'false');
-              }
-
+              var preview = qs('#thread-preview', root); var toggle = qs('#thread-preview-toggle', root);
+              if (preview.style.display === 'block') { preview.style.display = 'none'; qs('#thread-body', root).style.display = 'block'; toggle.textContent = 'Preview'; toggle.setAttribute('aria-pressed', 'false'); }
               var tmp = {
                 _id: 'tmp-' + Date.now(),
                 title: title + ' (pending review)',
