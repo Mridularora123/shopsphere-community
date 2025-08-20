@@ -43,6 +43,20 @@ function renderOrFallback(res, view, data, fallbackHTML) {
   });
 }
 
+// Never let a notification failure break the admin UI
+async function safeNotify(doc) {
+  try {
+    if (doc) await Notification.create(doc);
+  } catch (e) {
+    console.warn('[notify] failed:', e?.message || e);
+  }
+}
+
+// Safer than res.redirect('back') which depends on Referer header
+function goBack(req, res, fallback) {
+  return res.redirect(req.get('referer') || fallback);
+}
+
 /* --------------------- zero-dep CSV export helpers ----------------------- */
 function isPlainObject(v) {
   return v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date);
@@ -296,42 +310,44 @@ router.post('/threads/approve-all', async (_req, res, next) => {
 // thread moderation actions (+ notifications for TC-081)
 router.post('/threads/:id/approve', async (req, res, next) => {
   try {
-    const t = await Thread.findByIdAndUpdate(req.params.id, {
-      status: 'approved',
-      approvedAt: new Date(),
-    }, { new: true });
+    const t = await Thread.findByIdAndUpdate(
+      req.params.id,
+      { status: 'approved', approvedAt: new Date() },
+      { new: true }
+    );
     if (t?.author?.customerId) {
-      await Notification.create({
+      await safeNotify({
         shop: t.shop,
         userId: String(t.author.customerId),
         type: 'moderation',
         targetType: 'thread',
         targetId: String(t._id),
-        payload: { action: 'approved' }
+        payload: { action: 'approved' },
       });
     }
-    res.redirect('back');
+    goBack(req, res, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
 });
 router.post('/threads/:id/reject', async (req, res, next) => {
   try {
-    const t = await Thread.findByIdAndUpdate(req.params.id, {
-      status: 'rejected',
-      rejectedAt: new Date(),
-    }, { new: true });
+    const t = await Thread.findByIdAndUpdate(
+      req.params.id,
+      { status: 'rejected', rejectedAt: new Date() },
+      { new: true }
+    );
     if (t?.author?.customerId) {
-      await Notification.create({
+      await safeNotify({
         shop: t.shop,
         userId: String(t.author.customerId),
         type: 'moderation',
         targetType: 'thread',
         targetId: String(t._id),
-        payload: { action: 'rejected' }
+        payload: { action: 'rejected' },
       });
     }
-    res.redirect('back');
+    goBack(req, res, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
@@ -339,7 +355,7 @@ router.post('/threads/:id/reject', async (req, res, next) => {
 router.post('/threads/:id/pin', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { pinned: true });
-    res.redirect('back');
+    goBack(req, res, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
@@ -347,7 +363,7 @@ router.post('/threads/:id/pin', async (req, res, next) => {
 router.post('/threads/:id/unpin', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { pinned: false });
-    res.redirect('back');
+    goBack(req, res, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
@@ -355,7 +371,7 @@ router.post('/threads/:id/unpin', async (req, res, next) => {
 router.post('/threads/:id/close', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { closed: true });
-    res.redirect('back');
+    goBack(req, res, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
@@ -363,7 +379,7 @@ router.post('/threads/:id/close', async (req, res, next) => {
 router.post('/threads/:id/reopen', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { closed: false });
-    res.redirect('back');
+    goBack(req, res, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
@@ -375,7 +391,7 @@ router.post('/threads/:id/move', async (req, res, next) => {
     await Thread.findByIdAndUpdate(req.params.id, {
       categoryId: req.body.categoryId || null,
     });
-    res.redirect('back');
+    goBack(req, res, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
@@ -383,7 +399,7 @@ router.post('/threads/:id/move', async (req, res, next) => {
 router.post('/threads/:id/lock', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { locked: true });
-    res.redirect('back');
+    goBack(req, res, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
@@ -391,7 +407,7 @@ router.post('/threads/:id/lock', async (req, res, next) => {
 router.post('/threads/:id/unlock', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { locked: false });
-    res.redirect('back');
+    goBack(req, res, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
@@ -399,21 +415,27 @@ router.post('/threads/:id/unlock', async (req, res, next) => {
 router.post('/threads/:id/edit', async (req, res, next) => {
   try {
     const { title, body } = req.body || {};
-    const t = await Thread.findByIdAndUpdate(req.params.id, {
-      ...(title ? { title: String(title).slice(0, 180) } : {}),
-      ...(body ? { body: sanitizeHtml(body, { allowedTags: [], allowedAttributes: {} }) } : {}),
-    }, { new: true });
+    const t = await Thread.findByIdAndUpdate(
+      req.params.id,
+      {
+        ...(title ? { title: String(title).slice(0, 180) } : {}),
+        ...(body
+          ? { body: sanitizeHtml(body, { allowedTags: [], allowedAttributes: {} }) }
+          : {}),
+      },
+      { new: true }
+    );
     if (t?.author?.customerId) {
-      await Notification.create({
+      await safeNotify({
         shop: t.shop,
         userId: String(t.author.customerId),
         type: 'moderation',
         targetType: 'thread',
         targetId: String(t._id),
-        payload: { action: 'edited_by_mod' }
+        payload: { action: 'edited_by_mod' },
       });
     }
-    res.redirect('back');
+    goBack(req, res, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
@@ -422,13 +444,13 @@ router.post('/threads/:id/delete', async (req, res, next) => {
   try {
     const t = await Thread.findByIdAndDelete(req.params.id);
     if (t?.author?.customerId) {
-      await Notification.create({
+      await safeNotify({
         shop: t.shop,
         userId: String(t.author.customerId),
         type: 'moderation',
         targetType: 'thread',
         targetId: String(t._id),
-        payload: { action: 'deleted' }
+        payload: { action: 'deleted' },
       });
     }
     res.redirect('/admin/threads?status=pending');
@@ -438,22 +460,26 @@ router.post('/threads/:id/delete', async (req, res, next) => {
 });
 router.post('/threads/:id/reject-with-reason', async (req, res, next) => {
   try {
-    const t = await Thread.findByIdAndUpdate(req.params.id, {
-      status: 'rejected',
-      rejectedAt: new Date(),
-      moderationNote: (req.body.reason || '').slice(0, 300),
-    }, { new: true });
+    const t = await Thread.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: 'rejected',
+        rejectedAt: new Date(),
+        moderationNote: (req.body.reason || '').slice(0, 300),
+      },
+      { new: true }
+    );
     if (t?.author?.customerId) {
-      await Notification.create({
+      await safeNotify({
         shop: t.shop,
         userId: String(t.author.customerId),
         type: 'moderation',
         targetType: 'thread',
         targetId: String(t._id),
-        payload: { action: 'rejected', reason: (req.body.reason || '').slice(0,300) }
+        payload: { action: 'rejected', reason: (req.body.reason || '').slice(0, 300) },
       });
     }
-    res.redirect('back');
+    goBack(req, res, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
@@ -465,7 +491,9 @@ router.get('/comments', async (req, res, next) => {
     const status = (req.query.status || 'pending').toString();
     const items = await Comment.find({ status }).sort({ createdAt: -1 }).lean();
 
-    const list = (items || []).map((c) => `<li>
+    const list = (items || [])
+      .map(
+        (c) => `<li>
   <b>${esc(c.author?.displayName || c.author?.name || 'anon')}</b>:
   ${esc((c.body || '').slice(0, 120))}
   · ${esc(c.status || 'pending')}
@@ -483,7 +511,9 @@ router.get('/comments', async (req, res, next) => {
   <form action="/admin/comments/${c._id}/delete" method="post" style="display:inline" onsubmit="return confirm('Delete comment?');">
     <button type="submit">Delete</button>
   </form>
-</li>`).join('');
+</li>`
+      )
+      .join('');
 
     const fallback = `<!doctype html><html><body style="font-family:system-ui,Segoe UI,Roboto,Arial;margin:24px">
 <h2>Comments (${esc(status)})</h2>
@@ -513,41 +543,49 @@ router.post('/comments/:id/approve', async (req, res, next) => {
       await Thread.findByIdAndUpdate(c.threadId, { $inc: { commentsCount: 1 } });
     }
     if (c?.author?.customerId) {
-      await Notification.create({
+      await safeNotify({
         shop: c.shop,
         userId: String(c.author.customerId),
         type: 'moderation',
         targetType: 'comment',
         targetId: String(c._id),
-        payload: { action: 'approved' }
+        payload: { action: 'approved' },
       });
     }
-    res.redirect('back');
-  } catch (e) { next(e); }
+    goBack(req, res, '/admin/comments?status=pending');
+  } catch (e) {
+    next(e);
+  }
 });
 
 router.post('/comments/:id/reject', async (req, res, next) => {
   try {
-    const c = await Comment.findByIdAndUpdate(req.params.id, { status: 'rejected', rejectedAt: new Date() }, { new: true });
+    const c = await Comment.findByIdAndUpdate(
+      req.params.id,
+      { status: 'rejected', rejectedAt: new Date() },
+      { new: true }
+    );
     if (c?.author?.customerId) {
-      await Notification.create({
+      await safeNotify({
         shop: c.shop,
         userId: String(c.author.customerId),
         type: 'moderation',
         targetType: 'comment',
         targetId: String(c._id),
-        payload: { action: 'rejected' }
+        payload: { action: 'rejected' },
       });
     }
-    res.redirect('back');
-  } catch (e) { next(e); }
+    goBack(req, res, '/admin/comments?status=pending');
+  } catch (e) {
+    next(e);
+  }
 });
 
 /* ✅ SINGLE delete route: hard delete + keep counts in sync */
 router.post('/comments/:id/delete', async (req, res, next) => {
   try {
     const c = await Comment.findById(req.params.id);
-    if (!c) return res.redirect('back');
+    if (!c) return goBack(req, res, '/admin/comments?status=pending');
 
     const wasApproved = c.status === 'approved';
     const threadId = c.threadId;
@@ -559,61 +597,72 @@ router.post('/comments/:id/delete', async (req, res, next) => {
     }
 
     if (c?.author?.customerId) {
-      await Notification.create({
+      await safeNotify({
         shop: c.shop,
         userId: String(c.author.customerId),
         type: 'moderation',
         targetType: 'comment',
         targetId: String(c._id),
-        payload: { action: 'deleted' }
+        payload: { action: 'deleted' },
       });
     }
 
-    res.redirect('back');
-  } catch (e) { next(e); }
+    goBack(req, res, '/admin/comments?status=pending');
+  } catch (e) {
+    next(e);
+  }
 });
 
 router.post('/comments/:id/edit', async (req, res, next) => {
   try {
     const { body } = req.body || {};
-    const c = await Comment.findByIdAndUpdate(req.params.id, {
-      body: sanitizeHtml(body || '', { allowedTags: [], allowedAttributes: {} })
-    }, { new: true });
+    const c = await Comment.findByIdAndUpdate(
+      req.params.id,
+      { body: sanitizeHtml(body || '', { allowedTags: [], allowedAttributes: {} }) },
+      { new: true }
+    );
     if (c?.author?.customerId) {
-      await Notification.create({
+      await safeNotify({
         shop: c.shop,
         userId: String(c.author.customerId),
         type: 'moderation',
         targetType: 'comment',
         targetId: String(c._id),
-        payload: { action: 'edited_by_mod' }
+        payload: { action: 'edited_by_mod' },
       });
     }
-    res.redirect('back');
-  } catch (e) { next(e); }
+    goBack(req, res, '/admin/comments?status=pending');
+  } catch (e) {
+    next(e);
+  }
 });
 
 router.post('/comments/:id/reject-with-reason', async (req, res, next) => {
   try {
-    const c = await Comment.findByIdAndUpdate(req.params.id, {
-      status: 'rejected',
-      rejectedAt: new Date(),
-      moderationNote: (req.body.reason || '').slice(0, 300)
-    }, { new: true });
+    const c = await Comment.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: 'rejected',
+        rejectedAt: new Date(),
+        moderationNote: (req.body.reason || '').slice(0, 300),
+      },
+      { new: true }
+    );
     if (c?.author?.customerId) {
-      await Notification.create({
+      await safeNotify({
         shop: c.shop,
         userId: String(c.author.customerId),
         type: 'moderation',
         targetType: 'comment',
         targetId: String(c._id),
-        payload: { action: 'rejected', reason: (req.body.reason || '').slice(0,300) }
+        payload: { action: 'rejected', reason: (req.body.reason || '').slice(0, 300) },
       });
     }
-    res.redirect('back');
-  } catch (e) { next(e); }
+    goBack(req, res, '/admin/comments?status=pending');
+  } catch (e) {
+    next(e);
+  }
 });
-
 
 /* ------------------------------- Categories ------------------------------ */
 router.get('/categories', async (_req, res, next) => {
@@ -659,7 +708,7 @@ router.post('/categories/create', async (req, res, next) => {
       slug: sanitizeHtml((slug || '').slice(0, 80), { allowedTags: [], allowedAttributes: {} }),
       order: Number(order) || 0,
     });
-    res.redirect('back');
+    goBack(req, res, '/admin/categories');
   } catch (e) {
     next(e);
   }
@@ -667,7 +716,7 @@ router.post('/categories/create', async (req, res, next) => {
 router.post('/categories/:id/delete', async (req, res, next) => {
   try {
     await Category.findByIdAndDelete(req.params.id);
-    res.redirect('back');
+    goBack(req, res, '/admin/categories');
   } catch (e) {
     next(e);
   }
@@ -707,7 +756,7 @@ router.post('/reports/:id/resolve', async (req, res, next) => {
       status: 'resolved',
       resolvedAt: new Date(),
     });
-    res.redirect('back');
+    goBack(req, res, '/admin/reports');
   } catch (e) {
     next(e);
   }
@@ -773,7 +822,7 @@ router.post('/polls/create', async (req, res, next) => {
       options: parsed,
     });
 
-    res.redirect('back');
+    goBack(req, res, '/admin/polls');
   } catch (e) {
     next(e);
   }
@@ -781,7 +830,7 @@ router.post('/polls/create', async (req, res, next) => {
 router.post('/polls/:id/close', async (req, res, next) => {
   try {
     await Poll.findByIdAndUpdate(req.params.id, { status: 'closed' });
-    res.redirect('back');
+    goBack(req, res, '/admin/polls');
   } catch (e) {
     next(e);
   }
