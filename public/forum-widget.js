@@ -183,7 +183,7 @@
       '    <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto"/>',
       '    <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
       '    <button id="notif-btn" class="community-btn" type="button" style="position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
-      '    <div id="notif-panel" style="display:none;position:absolute;right:12px;top:90px;background:#fff;border:1px solid #ddd;border-radius:10px;width:380px;max-height:320px;overflow:auto;padding:8px;box-shadow:0 8px 20px rgba(0,0,0,.08);z-index:50"></div>',
+      '    <div id="notif-panel" style="display:none;position:fixed;right:12px;top:90px;background:#fff;border:1px solid #ddd;border-radius:10px;width:380px;max-height:320px;overflow:auto;padding:8px;box-shadow:0 8px 20px rgba(0,0,0,.08);z-index:50"></div>',
       '  </div>',
       '  <div class="community-row" style="margin-top:8px">',
       '    <select id="cat-filter" class="community-input" aria-label="Category filter"></select>',
