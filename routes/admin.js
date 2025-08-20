@@ -146,7 +146,7 @@ router.get('/threads', async (req, res, next) => {
         (t) => `<li>
   <b><a href="/admin/threads/${t._id}">${esc(t.title || '(untitled)')}</a></b>
   ${t.pinned ? ' · <span style="color:#b35">pinned</span>' : ''}
-  ${t.closed ? ' · <span style="color:#555">closed</span>' : ''}
+  ${t.closedAt ? ' · <span style="color:#555">closed</span>' : ''}
   ${t.locked ? ' · <span style="color:#a33">locked</span>' : ''}
   · ${esc(t.status || 'pending')}
   · <small>${t._id}</small>
@@ -159,8 +159,8 @@ router.get('/threads', async (req, res, next) => {
   <form action="/admin/threads/${t._id}/${t.pinned ? 'unpin' : 'pin'}" method="post" style="display:inline">
     <button type="submit">${t.pinned ? 'Unpin' : 'Pin'}</button>
   </form>
-  <form action="/admin/threads/${t._id}/${t.closed ? 'reopen' : 'close'}" method="post" style="display:inline">
-    <button type="submit">${t.closed ? 'Reopen' : 'Close'}</button>
+  <form action="/admin/threads/${t._id}/${t.closedAt ? 'reopen' : 'close'}" method="post" style="display:inline">
+    <button type="submit">${t.closedAt ? 'Reopen' : 'Close'}</button>
   </form>
   <form action="/admin/threads/${t._id}/${t.locked ? 'unlock' : 'lock'}" method="post" style="display:inline">
     <button type="submit">${t.locked ? 'Unlock' : 'Lock'}</button>
@@ -236,7 +236,7 @@ router.get('/threads/:id', async (req, res, next) => {
 
     const fallback = `<!doctype html><html><body style="font-family:system-ui,Segoe UI,Roboto,Arial;margin:24px">
 <h2>${esc(t.title || '(untitled)')}</h2>
-<p><i>Status:</i> ${esc(t.status || 'pending')} ${t.pinned ? '· pinned' : ''} ${t.closed ? '· closed' : ''} ${t.locked ? '· locked' : ''}</p>
+<p><i>Status:</i> ${esc(t.status || 'pending')} ${t.pinned ? '· pinned' : ''} ${t.closedAt ? '· closed' : ''} ${t.locked ? '· locked' : ''}</p>
 <pre style="background:#f6f6f6;padding:12px;border-radius:8px">${esc(t.body || '')}</pre>
 
 <div style="margin:10px 0">
@@ -253,8 +253,8 @@ router.get('/threads/:id', async (req, res, next) => {
   <form action="/admin/threads/${t._id}/${t.pinned ? 'unpin' : 'pin'}" method="post" style="display:inline;margin-right:6px">
     <button type="submit">${t.pinned ? 'Unpin' : 'Pin'}</button>
   </form>
-  <form action="/admin/threads/${t._id}/${t.closed ? 'reopen' : 'close'}" method="post" style="display:inline;margin-right:6px">
-    <button type="submit">${t.closed ? 'Reopen' : 'Close'}</button>
+  <form action="/admin/threads/${t._id}/${t.closedAt ? 'reopen' : 'close'}" method="post" style="display:inline;margin-right:6px">
+    <button type="submit">${t.closedAt ? 'Reopen' : 'Close'}</button>
   </form>
   <form action="/admin/threads/${t._id}/${t.locked ? 'unlock' : 'lock'}" method="post" style="display:inline;margin-right:6px">
     <button type="submit">${t.locked ? 'Unlock' : 'Lock'}</button>
@@ -370,20 +370,22 @@ router.post('/threads/:id/unpin', async (req, res, next) => {
 });
 router.post('/threads/:id/close', async (req, res, next) => {
   try {
-    await Thread.findByIdAndUpdate(req.params.id, { closed: true });
-    goBack(req, res, '/admin/threads?status=pending');
+    await Thread.findByIdAndUpdate(req.params.id, { closedAt: new Date() });
+    res.redirect('back');
   } catch (e) {
     next(e);
   }
 });
+
 router.post('/threads/:id/reopen', async (req, res, next) => {
   try {
-    await Thread.findByIdAndUpdate(req.params.id, { closed: false });
-    goBack(req, res, '/admin/threads?status=pending');
+    await Thread.findByIdAndUpdate(req.params.id, { $unset: { closedAt: 1 } });
+    res.redirect('back');
   } catch (e) {
     next(e);
   }
 });
+
 
 /* -------------------- 4.1 Thread moderator controls --------------------- */
 router.post('/threads/:id/move', async (req, res, next) => {
