@@ -50,7 +50,8 @@
       '.thread-body img,.comment-body img{max-width:100%;height:auto;border-radius:8px;display:block;margin:8px 0}',
       '.thread-body a,.comment-body a{color:#0a66c2;text-decoration:underline}',
       /* make sure editor area is visible even if Toast UI fails */
-      '#thread-editor{min-height:300px;border:1px solid #ddd;border-radius:8px;background:#fff}',
+      '#thread-editor{min-height:300px;border:1px solid #ddd;border-radius:8px;background:#fff;display:block}',    // ⬅ add display:block
+      '#thread-editor:empty{display:block}',  // ⬅ explicitly defeat Dawn’s div:empty rule
       '@media (max-width:600px){.community-row{flex-wrap:wrap}.community-btn{width:auto}.community-input{min-width:180px}}'
     ].join('');
     var style = document.createElement('style');
