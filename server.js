@@ -14,6 +14,11 @@ import authRoutes from './routes/auth.js';
 import proxyRoutes from './routes/proxy.js';
 import adminRoutes from './routes/admin.js';
 
+// ⬇️ NEW: models for the weekly digest task
+import Thread from './models/Thread.js';
+import Notification from './models/Notification.js';
+import NotificationSettings from './models/NotificationSettings.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -111,6 +116,69 @@ app.use('/auth', authRoutes);        // OAuth
 app.use('/proxy', proxyRoutes);      // App Proxy endpoints (also verifies signature)
 app.use('/proxy/api', proxyRoutes);  // optional alias
 app.use('/admin', adminRoutes);      // Admin UI
+
+/* ---------------------- Weekly roundup task (top threads) ------------------ */
+// Creates a weekly digest notification per opted-in user (per shop)
+app.post('/tasks/weekly-digest', async (req, res) => {
+  if (req.headers['x-task-key'] !== process.env.TASK_KEY) {
+    return res.status(401).send('unauthorized');
+  }
+
+  try {
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 86400000);
+
+    // top 5 threads by votes in the last 7 days (approved only), grouped per shop
+    const topByShop = await Thread.aggregate([
+      { $match: { status: 'approved', createdAt: { $gte: weekAgo } } },
+      { $sort: { votes: -1, createdAt: -1 } },
+      {
+        $group: {
+          _id: '$shop',
+          threads: { $push: { _id: '$_id', title: '$title', votes: '$votes' } }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          threads: { $slice: ['$threads', 5] }
+        }
+      }
+    ]);
+
+    let total = 0;
+
+    for (const row of topByShop) {
+      const shop = row._id;
+      const threads = row.threads || [];
+      if (!threads.length) continue;
+
+      // who wants a weekly digest for this shop?
+      const subs = await NotificationSettings.find({ shop, weeklyDigest: true })
+        .select('userId')
+        .lean();
+
+      const docs = subs.map(s => ({
+        shop,
+        userId: String(s.userId),
+        type: 'digest',
+        targetType: 'system',
+        targetId: '',
+        payload: { threads },
+      }));
+
+      if (docs.length) {
+        const r = await Notification.insertMany(docs, { ordered: false });
+        total += r.length;
+      }
+    }
+
+    res.json({ ok: true, pushed: total });
+  } catch (err) {
+    console.error('weekly-digest error:', err);
+    res.status(500).json({ ok: false, message: err?.message || 'failed' });
+  }
+});
 
 /* ---------------------------- 404 + Error handlers ------------------------ */
 app.use((req, res) => res.status(404).json({ success: false, message: 'Not found' }));

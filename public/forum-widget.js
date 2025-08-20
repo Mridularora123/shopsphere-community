@@ -182,6 +182,8 @@
       '    <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto"/>',
       '    <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto"/>',
       '    <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
+      '    <button id="notif-btn" class="community-btn" type="button" style="position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
+      '    <div id="notif-panel" style="display:none;position:absolute;right:12px;top:90px;background:#fff;border:1px solid #ddd;border-radius:10px;width:380px;max-height:320px;overflow:auto;padding:8px;box-shadow:0 8px 20px rgba(0,0,0,.08);z-index:50"></div>',
       '  </div>',
       '  <div class="community-row" style="margin-top:8px">',
       '    <select id="cat-filter" class="community-input" aria-label="Category filter"></select>',
@@ -209,6 +211,94 @@
     var bar = makeToolbar(body);
     qs('#rte-bar', root).appendChild(bar);
   }
+
+  // right after: template(root);
+
+  // 🔔 Notifications wiring
+  var badge = null, panel = null;
+
+  function loadNotifs() {
+    // /notifications returns { success, items, unread }
+    return api('/notifications', { qs: { customer_id: cid, limit: 20 } })
+      .then(function (j) {
+        badge = badge || qs('#notif-badge', root);
+        panel = panel || qs('#notif-panel', root);
+
+        // unread count
+        var unread = (j && j.unread) || 0;
+        if (badge) {
+          badge.textContent = unread;
+          badge.style.display = unread > 0 ? 'inline-block' : 'none';
+        }
+
+        // list
+        var items = (j && j.items) || [];
+        if (panel) panel.innerHTML = renderNotifs(items);
+      })
+      .catch(function () { /* ignore network hiccups */ });
+  }
+
+  var bell = qs('#notif-btn', root);
+  if (bell) {
+    bell.addEventListener('click', function () {
+      panel = panel || qs('#notif-panel', root);
+      var open = panel.style.display === 'block';
+
+      if (!open) {
+        loadNotifs().then(function () {
+          panel.style.display = 'block';
+          // mark all as read when opening the panel
+          api('/notifications/mark-read', { method: 'POST', body: { customer_id: cid, all: true } })
+            .then(function () { if (badge) badge.style.display = 'none'; })
+            .catch(function () { });
+        });
+      } else {
+        panel.style.display = 'none';
+      }
+    });
+
+    // optional: click-away close
+    document.addEventListener('click', function (e) {
+      panel = panel || qs('#notif-panel', root);
+      if (!panel) return;
+      if (!panel.contains(e.target) && !bell.contains(e.target)) {
+        panel.style.display = 'none';
+      }
+    });
+
+    // keep badge fresh every minute + first paint
+    setInterval(loadNotifs, 60000);
+    loadNotifs();
+  }
+
+
+  function notifItemHTML(n) {
+    var when = new Date(n.createdAt).toLocaleString();
+    var body = '';
+    if (n.type === 'reply') body = 'New reply on your thread';
+    else if (n.type === 'mention') body = 'You were mentioned';
+    else if (n.type === 'moderation') body = 'Moderation update: ' + (n.payload && n.payload.action);
+    else if (n.type === 'poll_end') body = 'Poll closed';
+    else if (n.type === 'announcement') body = (n.payload && n.payload.message) || 'Announcement';
+    else if (n.type === 'digest') body = 'Weekly roundup';
+
+    return '<li style="padding:6px 0;border-top:1px solid #eee">' +
+      '<div><b>' + body + '</b></div>' +
+      (n.payload && n.payload.threads
+        ? '<div class="community-meta">' +
+        (n.payload.threads || []).map(function (t) { return '• ' + escapeHtml(t.title) + ' (▲ ' + (t.votes || 0) + ')'; }).join('<br>') +
+        '</div>'
+        : '') +
+      '<div class="community-meta">' + when + '</div>' +
+      '</li>';
+  }
+  function renderNotifs(list) {
+    if (!list || !list.length) return '<div class="community-meta">No notifications</div>';
+    return '<ul style="margin:0;padding:0;list-style:none">' + list.map(notifItemHTML).join('') + '</ul>';
+  }
+
+
+
 
   /* ---------- thread list rendering ---------- */
   function threadActionsHTML(t, cid) {
@@ -870,7 +960,7 @@
                 author: { customerId: cid },
                 createdAt: new Date().toISOString(),
                 pinned: false,
-                closedAt: null, 
+                closedAt: null,
                 votes: 0,
                 editableUntil: new Date(Date.now() + 15 * 60 * 1000).toISOString()
               };

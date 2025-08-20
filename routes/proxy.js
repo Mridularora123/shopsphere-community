@@ -28,15 +28,15 @@ function normalizeShop(s) {
 // ✅ Allow safe inline HTML for headings, lists, links, images, etc.
 const CLEAN_OPTS = {
   allowedTags: [
-    'p','br','strong','em','b','i','u',
-    'ul','ol','li',
-    'h1','h2','h3','blockquote',
-    'a','img',
-    'code','pre'
+    'p', 'br', 'strong', 'em', 'b', 'i', 'u',
+    'ul', 'ol', 'li',
+    'h1', 'h2', 'h3', 'blockquote',
+    'a', 'img',
+    'code', 'pre'
   ],
   allowedAttributes: {
-    a: ['href','target','rel'],
-    img: ['src','alt']
+    a: ['href', 'target', 'rel'],
+    img: ['src', 'alt']
   },
   allowedSchemes: ['http', 'https', 'mailto', 'data'],
   disallowedTagsMode: 'discard',
@@ -55,10 +55,10 @@ const parseLimit = (v) => Math.min(100, Math.max(1, parseInt(v || '20', 10)));
 
 const sortMap = (s) => {
   switch (s) {
-    case 'top':       return { votes: -1, createdAt: -1 };
+    case 'top': return { votes: -1, createdAt: -1 };
     case 'discussed': return { commentsCount: -1, createdAt: -1 };
-    case 'hot':       return { hot: -1, createdAt: -1 };
-    default:          return { pinned: -1, createdAt: -1 }; // "new"
+    case 'hot': return { hot: -1, createdAt: -1 };
+    default: return { pinned: -1, createdAt: -1 }; // "new"
   }
 };
 
@@ -69,7 +69,7 @@ const BANNED = (process.env.BANNED_WORDS || '')
   .filter(Boolean);
 
 const MAX_LINKS = parseInt(process.env.MAX_LINKS_PER_POST || '5', 10);
-const EDIT_MIN  = parseInt(process.env.AUTHOR_EDIT_WINDOW_MIN || '30', 10);
+const EDIT_MIN = parseInt(process.env.AUTHOR_EDIT_WINDOW_MIN || '30', 10);
 
 function tooManyLinks(text) {
   const m = (text || '').match(/https?:\/\/\S+/gi);
@@ -143,7 +143,7 @@ router.get('/threads', async (req, res) => {
 
   const created = {};
   if (from) created.$gte = new Date(from);
-  if (to)   created.$lte = new Date(to);
+  if (to) created.$lte = new Date(to);
   if (created.$gte || created.$lte) base.createdAt = created;
 
   if (sort === 'top' && period) {
@@ -177,13 +177,13 @@ router.get('/threads', async (req, res) => {
   }
 
   const isTextSearch = !!textQuery;
-  const query       = isTextSearch ? { ...base, $text: { $search: textQuery } } : base;
-  const projection  = isTextSearch ? { score: { $meta: 'textScore' } } : undefined;
-  let ordering      = sortMap(sort);
+  const query = isTextSearch ? { ...base, $text: { $search: textQuery } } : base;
+  const projection = isTextSearch ? { score: { $meta: 'textScore' } } : undefined;
+  let ordering = sortMap(sort);
   if (isTextSearch) ordering = { score: { $meta: 'textScore' } };
 
   const items = await Thread.find(query, projection).sort(ordering).limit(lim).lean();
-  const next  = items.length === lim ? String(items[items.length - 1]._id) : null;
+  const next = items.length === lim ? String(items[items.length - 1]._id) : null;
 
   res.json({ success: true, items, next });
 });
@@ -192,7 +192,7 @@ router.get('/threads', async (req, res) => {
 router.post('/threads', async (req, res) => {
   const shop = req.query.shop;
   const { title, body, categoryId, tags = [], isAnonymous = false, customer_id, display_name } = req.body || {};
-  if (!shop)  return res.json({ success: false, message: 'shop required' });
+  if (!shop) return res.json({ success: false, message: 'shop required' });
   if (!title) return res.json({ success: false, message: 'Title required' });
 
   const cleanBody = clean(body);
@@ -252,8 +252,8 @@ router.post('/comments', async (req, res) => {
   }
 
   const cleanBody = clean(body);
-  if (violatesBanned(cleanBody))  return res.json({ success: false, message: 'Content contains banned terms' });
-  if (tooManyLinks(cleanBody))    return res.json({ success: false, message: `Too many links (max ${MAX_LINKS})` });
+  if (violatesBanned(cleanBody)) return res.json({ success: false, message: 'Content contains banned terms' });
+  if (tooManyLinks(cleanBody)) return res.json({ success: false, message: `Too many links (max ${MAX_LINKS})` });
 
   const now = new Date();
   const editableUntil = customer_id ? new Date(now.getTime() + EDIT_MIN * 60000) : null;
@@ -339,7 +339,7 @@ router.patch('/threads/:id', async (req, res) => {
   if (!authorCanModify(t, customer_id)) return res.json({ success: false, message: 'Edit window expired' });
 
   if (title) t.title = String(title).slice(0, 180);
-  if (body)  t.body  = clean(body);
+  if (body) t.body = clean(body);
   await t.save();
   res.json({ success: true });
 });
@@ -609,7 +609,7 @@ router.get('/notifications', async (req, res) => {
   const find = cursor ? { ...base, _id: { $lt: cursor } } : base;
 
   const items = await Notification.find(find).sort({ createdAt: -1 }).limit(lim).lean();
-  const next  = items.length === lim ? String(items[items.length - 1]._id) : null;
+  const next = items.length === lim ? String(items[items.length - 1]._id) : null;
   const unread = await Notification.countDocuments({ ...base, readAt: null });
 
   res.json({ success: true, items, next, unread });
@@ -645,7 +645,7 @@ router.patch('/notification-settings', async (req, res) => {
   if (!shop || !customer_id) return res.json({ success: false, message: 'shop and customer_id required' });
 
   const set = {};
-  for (const k of ['reply','mention','moderation','poll_end','announcement','digest']) {
+  for (const k of ['reply', 'mention', 'moderation', 'poll_end', 'announcement', 'digest']) {
     if (k in inApp) set[`inApp.${k}`] = !!inApp[k];
   }
   if (typeof weeklyDigest === 'boolean') set.weeklyDigest = !!weeklyDigest;
@@ -657,6 +657,75 @@ router.patch('/notification-settings', async (req, res) => {
   );
   res.json({ success: true, settings: doc });
 });
+
+/* ------------------------------ Notifications --------------------------- */
+// GET /proxy/notifications?shop=...&customer_id=...&limit=20
+router.get('/notifications', async (req, res) => {
+  try {
+    const shop = req.query.shop;                  // already normalized by router.use
+    const customer_id = (req.query.customer_id || '').toString();
+    const lim = parseLimit(req.query.limit);
+
+    if (!shop || !customer_id) {
+      return res.json({ success: false, message: 'shop and customer_id required' });
+    }
+
+    // latest first
+    const items = await Notification.find({ shop, userId: customer_id })
+      .sort({ createdAt: -1 })
+      .limit(lim)
+      .lean();
+
+    // count unread; support either read:boolean or readAt:Date schemas
+    const unread = await Notification.countDocuments({
+      shop,
+      userId: customer_id,
+      $or: [
+        { read: { $ne: true } },
+        { readAt: { $exists: false } },
+        { readAt: null }
+      ]
+    });
+
+    res.json({ success: true, items, unread });
+  } catch (e) {
+    res.json({ success: false, message: e?.message || 'Failed to load notifications' });
+  }
+});
+
+// POST /proxy/notifications/mark-read  body: { customer_id, all: true } or { customer_id, ids: [...] }
+router.post('/notifications/mark-read', async (req, res) => {
+  try {
+    const shop = req.query.shop;                  // already normalized by router.use
+    const { customer_id, all, ids } = req.body || {};
+    const userId = (customer_id || '').toString();
+
+    if (!shop || !userId) {
+      return res.json({ success: false, message: 'shop and customer_id required' });
+    }
+
+    const match = {
+      shop,
+      userId,
+      $or: [
+        { read: { $ne: true } },
+        { readAt: { $exists: false } },
+        { readAt: null }
+      ]
+    };
+
+    if (!all && Array.isArray(ids) && ids.length) {
+      match._id = { $in: ids };
+    }
+
+    await Notification.updateMany(match, { $set: { read: true, readAt: new Date() } });
+
+    res.json({ success: true });
+  } catch (e) {
+    res.json({ success: false, message: e?.message || 'Failed to mark read' });
+  }
+});
+
 
 /* -------------------------------- Misc --------------------------------- */
 router.get('/ping', (_req, res) => res.json({ ok: true }));
