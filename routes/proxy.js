@@ -12,6 +12,7 @@ import Vote from '../models/Vote.js';
 import Report from '../models/Report.js';
 import { hotScore } from '../lib/hotScore.js';
 import Notification from '../models/Notification.js';
+import NotificationSettings, { NOTIF_DEFAULTS } from '../models/NotificationSettings.js';
 
 const router = express.Router();
 
@@ -94,6 +95,14 @@ function periodToWindow(period) {
   const days = map[period] || 3650;
   const from = new Date(now.getTime() - days * 86400000);
   return { from, to: now };
+}
+
+/* ------------------------- Notification helpers ------------------------ */
+async function shouldNotify(shop, userId, type) {
+  if (!userId) return false;
+  const s = await NotificationSettings.findOne({ shop, userId: String(userId) }).lean();
+  const prefs = s?.inApp || NOTIF_DEFAULTS.inApp;
+  return !!prefs[type];
 }
 
 /* ---------------------------- App Proxy Auth --------------------------- */
@@ -206,7 +215,7 @@ router.post('/threads', async (req, res) => {
     },
     status: process.env.AUTO_APPROVE === 'true' ? 'approved' : 'pending',
     locked: false,
-    closedAt: null,            // ✅ use closedAt (schema) not `closed`
+    closedAt: null,            // ✅ use closedAt (schema)
     editableUntil,
     hot: hotScore(0, now),
   });
@@ -229,7 +238,7 @@ router.post('/comments', async (req, res) => {
   const thread = await Thread.findById(threadId).lean();
   if (!thread) return res.json({ success: false, message: 'Thread not found' });
 
-  // ✅ Enforce both locked & closedAt (not `closed`)
+  // ✅ Enforce both locked & closedAt
   if (thread.locked || thread.closedAt) {
     return res.json({ success: false, message: 'Thread closed for new comments' });
   }
@@ -263,14 +272,36 @@ router.post('/comments', async (req, res) => {
 
   if (c.status === 'approved') {
     await Thread.updateOne({ _id: threadId }, { $inc: { commentsCount: 1 } });
+
+    // 🔔 notify thread author (reply) if enabled and not self-reply
     if (thread.author?.customerId && String(thread.author.customerId) !== String(customer_id || '')) {
-      await Notification.create({
-        shop,
-        userId: String(thread.author.customerId),
-        type: 'reply',
-        targetType: 'thread',
-        targetId: String(threadId),
-      });
+      if (await shouldNotify(shop, String(thread.author.customerId), 'reply')) {
+        await Notification.create({
+          shop,
+          userId: String(thread.author.customerId),
+          type: 'reply',
+          targetType: 'thread',
+          targetId: String(threadId),
+          payload: { commentId: String(c._id) },
+        });
+      }
+    }
+
+    // 🔔 mentions: @<digits> (customer id)
+    const mentioned = Array.from(
+      new Set((cleanBody.match(/@(\d{3,})/g) || []).map((m) => m.slice(1)))
+    ).filter((uid) => uid !== String(customer_id || ''));
+    for (const uid of mentioned) {
+      if (await shouldNotify(shop, uid, 'mention')) {
+        await Notification.create({
+          shop,
+          userId: uid,
+          type: 'mention',
+          targetType: 'comment',
+          targetId: String(c._id),
+          payload: { threadId: String(threadId) },
+        });
+      }
     }
   }
 
@@ -562,6 +593,69 @@ router.get('/suggest', async (req, res) => {
     .lean();
 
   res.json({ success: true, titles, tags: tagsAgg.map((t) => t._id), categories: cats });
+});
+
+/* --------------------------- Notifications API -------------------------- */
+// List notifications (with unread count)
+router.get('/notifications', async (req, res) => {
+  const shop = req.query.shop;
+  const userId = req.query.customer_id || req.query.userId;
+  const lim = parseLimit(req.query.limit || 20);
+  const cursor = req.query.cursor;
+
+  if (!shop || !userId) return res.json({ success: false, message: 'shop and customer_id required' });
+
+  const base = { shop, userId: String(userId) };
+  const find = cursor ? { ...base, _id: { $lt: cursor } } : base;
+
+  const items = await Notification.find(find).sort({ createdAt: -1 }).limit(lim).lean();
+  const next  = items.length === lim ? String(items[items.length - 1]._id) : null;
+  const unread = await Notification.countDocuments({ ...base, readAt: null });
+
+  res.json({ success: true, items, next, unread });
+});
+
+// Mark notifications read
+router.post('/notifications/mark-read', async (req, res) => {
+  const shop = req.query.shop;
+  const { customer_id, ids = [], all = false } = req.body || {};
+  if (!shop || !customer_id) return res.json({ success: false, message: 'shop and customer_id required' });
+
+  const filter = { shop, userId: String(customer_id), readAt: null };
+  if (!all && ids.length) filter._id = { $in: ids };
+
+  const r = await Notification.updateMany(filter, { $set: { readAt: new Date() } });
+  res.json({ success: true, modified: r.modifiedCount || r.nModified || 0 });
+});
+
+// Get current user's notification settings (with defaults)
+router.get('/notification-settings', async (req, res) => {
+  const shop = req.query.shop;
+  const userId = req.query.customer_id || req.query.userId;
+  if (!shop || !userId) return res.json({ success: false, message: 'shop and customer_id required' });
+
+  const s = await NotificationSettings.findOne({ shop, userId: String(userId) }).lean();
+  res.json({ success: true, settings: s || { ...NOTIF_DEFAULTS, shop, userId: String(userId) } });
+});
+
+// Update current user's notification settings
+router.patch('/notification-settings', async (req, res) => {
+  const shop = req.query.shop;
+  const { customer_id, inApp = {}, weeklyDigest } = req.body || {};
+  if (!shop || !customer_id) return res.json({ success: false, message: 'shop and customer_id required' });
+
+  const set = {};
+  for (const k of ['reply','mention','moderation','poll_end','announcement','digest']) {
+    if (k in inApp) set[`inApp.${k}`] = !!inApp[k];
+  }
+  if (typeof weeklyDigest === 'boolean') set.weeklyDigest = !!weeklyDigest;
+
+  const doc = await NotificationSettings.findOneAndUpdate(
+    { shop, userId: String(customer_id) },
+    { $set: set },
+    { upsert: true, new: true }
+  );
+  res.json({ success: true, settings: doc });
 });
 
 /* -------------------------------- Misc --------------------------------- */

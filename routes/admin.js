@@ -10,6 +10,7 @@ import Poll from '../models/Poll.js';
 import Report from '../models/Report.js';
 import Vote from '../models/Vote.js';
 import Notification from '../models/Notification.js';
+import NotificationSettings from '../models/NotificationSettings.js';
 
 const router = express.Router();
 
@@ -53,9 +54,11 @@ async function safeNotify(doc) {
 }
 
 // Safer than res.redirect('back') which depends on Referer header
-function goBack(req, res, fallback) {
-  return res.redirect(req.get('referer') || fallback);
+function goBack(req, res, fallback = '/admin') {
+  const back = req.get('Referrer') || fallback;
+  res.redirect(back);
 }
+
 
 /* --------------------- zero-dep CSV export helpers ----------------------- */
 function isPlainObject(v) {
@@ -125,6 +128,7 @@ router.get('/', async (_req, res, next) => {
   <a href="/admin/polls">Polls</a> ·
   <a href="/admin/export?type=threads">Export CSV</a> ·
   <a href="/admin/notifications">Notifications</a>
+  <a href="/admin/announce">Announcements</a>
 </p>
 </body></html>`;
 
@@ -371,20 +375,17 @@ router.post('/threads/:id/unpin', async (req, res, next) => {
 router.post('/threads/:id/close', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { closedAt: new Date() });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    goBack(req, res, '/admin/threads?status=pending');   // ✅ consistent redirect
+  } catch (e) { next(e); }
 });
 
 router.post('/threads/:id/reopen', async (req, res, next) => {
   try {
-    await Thread.findByIdAndUpdate(req.params.id, { $unset: { closedAt: 1 } });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    await Thread.findByIdAndUpdate(req.params.id, { closedAt: null });
+    goBack(req, res, '/admin/threads?status=pending');   // ✅ consistent redirect
+  } catch (e) { next(e); }
 });
+
 
 
 /* -------------------- 4.1 Thread moderator controls --------------------- */
@@ -829,14 +830,112 @@ router.post('/polls/create', async (req, res, next) => {
     next(e);
   }
 });
+// POST /polls/:id/close
 router.post('/polls/:id/close', async (req, res, next) => {
   try {
-    await Poll.findByIdAndUpdate(req.params.id, { status: 'closed' });
+    const { id } = req.params;
+
+    // 1) close the poll
+    await Poll.findByIdAndUpdate(id, { status: 'closed' });
+
+    // 2) notify the thread author that this poll ended
+    const poll = await Poll.findById(id).lean();
+    if (poll?.threadId) {
+      const t = await Thread.findById(poll.threadId).select('shop author.customerId').lean();
+      if (t?.author?.customerId) {
+        await Notification.create({
+          shop: t.shop,
+          userId: String(t.author.customerId),
+          type: 'poll_end',            // <-- you'll render this in your notifications list
+          targetType: 'poll',
+          targetId: String(poll._id),
+          payload: { threadId: String(poll.threadId) }
+        });
+      }
+    }
+
+    // back to polls list
     goBack(req, res, '/admin/polls');
   } catch (e) {
     next(e);
   }
 });
+
+// GET /admin/announce - simple form
+router.get('/announce', (req, res) => {
+  const shop = req.query.shop || ''; // put your default shop here if you have one
+  res.send(`<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Announcement</title></head>
+<body style="font-family:system-ui,Segoe UI,Roboto,Arial;max-width:860px;margin:24px auto">
+  <h1>Send Announcement</h1>
+  <form method="post" action="/admin/announce" style="display:grid;gap:12px;max-width:520px">
+    <label>Shop<br><input name="shop" value="${shop}" required style="width:100%"></label>
+    <label>Message<br><textarea name="message" rows="4" required style="width:100%"></textarea></label>
+
+    <fieldset style="padding:8px 12px">
+      <legend>Audience</legend>
+      <label><input type="radio" name="audience" value="all" checked> All users who’ve posted</label><br>
+      <label><input type="radio" name="audience" value="one"> Single user (customerId)</label>
+      <div id="uid" style="margin-top:8px;display:none">
+        <input name="userId" placeholder="customerId (e.g., 8322784788675)" style="width:100%">
+      </div>
+    </fieldset>
+
+    <button type="submit">Send</button>
+  </form>
+
+  <p style="margin-top:16px"><a href="/admin">Back</a></p>
+
+  <script>
+    const radios = document.querySelectorAll('input[name="audience"]');
+    const uid = document.getElementById('uid');
+    function toggle() {
+      uid.style.display = document.querySelector('input[name="audience"]:checked').value === 'one' ? 'block' : 'none';
+    }
+    radios.forEach(r => r.addEventListener('change', toggle));
+    toggle();
+  </script>
+</body>
+</html>`);
+});
+
+// POST /admin/announce - create announcement notifications
+router.post('/announce', async (req, res, next) => {
+  try {
+    const { shop, message, audience = 'all', userId } = req.body || {};
+    if (!shop || !message) return res.status(400).send('shop and message required');
+
+    let userIds = [];
+    if (audience === 'one') {
+      if (!userId) return res.status(400).send('userId required for audience=one');
+      userIds = [String(userId)];
+    } else {
+      // "all" → all distinct customerIds who have posted anything
+      const [t, c] = await Promise.all([
+        Thread.distinct('author.customerId', { shop, 'author.customerId': { $ne: null } }),
+        Comment.distinct('author.customerId', { shop, 'author.customerId': { $ne: null } }),
+      ]);
+      userIds = Array.from(new Set([...(t || []).map(String), ...(c || []).map(String)])).filter(Boolean);
+    }
+
+    const docs = userIds.map(uid => ({
+      shop,
+      userId: uid,
+      type: 'announcement',
+      targetType: 'system',
+      targetId: '',
+      payload: { message: String(message).slice(0, 500) },
+    }));
+
+    if (docs.length) await Notification.insertMany(docs, { ordered: false });
+
+    res.redirect('/admin/notifications'); // or '/admin' if you prefer
+  } catch (e) {
+    next(e);
+  }
+});
+
 
 /* -------------------------- 4.3 CSV Exports ----------------------------- */
 // GET /admin/export?type=threads|comments|votes|polls&shop=...&from=YYYY-MM-DD&to=YYYY-MM-DD
