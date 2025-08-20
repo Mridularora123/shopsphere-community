@@ -43,6 +43,21 @@ function renderOrFallback(res, view, data, fallbackHTML) {
   });
 }
 
+/* --------------------- response helpers (fix 500 on redirect) ------------ */
+function wantsJSON(req) {
+  const a = req.get('accept') || '';
+  return /\bjson\b/i.test(a);
+}
+function safeBack(req, res, fallback = '/admin') {
+  const referer = req.get('referer') || req.get('referrer') || '';
+  const dest = referer || fallback;
+  return res.redirect(dest);
+}
+function afterAction(req, res, payload = {}, fallback = '/admin') {
+  if (wantsJSON(req)) return res.json({ success: true, ...payload });
+  return safeBack(req, res, fallback);
+}
+
 /* --------------------- zero-dep CSV export helpers ----------------------- */
 function isPlainObject(v) {
   return v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date);
@@ -287,7 +302,8 @@ router.post('/threads/approve-all', async (_req, res, next) => {
       { status: 'pending' },
       { $set: { status: 'approved', approvedAt: new Date() } }
     );
-    res.redirect('/admin/threads?status=pending');
+    // Always go back to pending list (same behavior as before)
+    return afterAction(_req, res, {}, '/admin/threads?status=pending');
   } catch (e) {
     next(e);
   }
@@ -310,10 +326,8 @@ router.post('/threads/:id/approve', async (req, res, next) => {
         payload: { action: 'approved' }
       });
     }
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 router.post('/threads/:id/reject', async (req, res, next) => {
   try {
@@ -331,42 +345,32 @@ router.post('/threads/:id/reject', async (req, res, next) => {
         payload: { action: 'rejected' }
       });
     }
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 router.post('/threads/:id/pin', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { pinned: true });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 router.post('/threads/:id/unpin', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { pinned: false });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 router.post('/threads/:id/close', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { closed: true });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 router.post('/threads/:id/reopen', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { closed: false });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 
 /* -------------------- 4.1 Thread moderator controls --------------------- */
@@ -375,26 +379,20 @@ router.post('/threads/:id/move', async (req, res, next) => {
     await Thread.findByIdAndUpdate(req.params.id, {
       categoryId: req.body.categoryId || null,
     });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 router.post('/threads/:id/lock', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { locked: true });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 router.post('/threads/:id/unlock', async (req, res, next) => {
   try {
     await Thread.findByIdAndUpdate(req.params.id, { locked: false });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 router.post('/threads/:id/edit', async (req, res, next) => {
   try {
@@ -413,10 +411,8 @@ router.post('/threads/:id/edit', async (req, res, next) => {
         payload: { action: 'edited_by_mod' }
       });
     }
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 router.post('/threads/:id/delete', async (req, res, next) => {
   try {
@@ -431,10 +427,8 @@ router.post('/threads/:id/delete', async (req, res, next) => {
         payload: { action: 'deleted' }
       });
     }
-    res.redirect('/admin/threads?status=pending');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res, {}, '/admin/threads?status=pending');
+  } catch (e) { next(e); }
 });
 router.post('/threads/:id/reject-with-reason', async (req, res, next) => {
   try {
@@ -453,10 +447,8 @@ router.post('/threads/:id/reject-with-reason', async (req, res, next) => {
         payload: { action: 'rejected', reason: (req.body.reason || '').slice(0,300) }
       });
     }
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 
 /* ------------------------------- Comments -------------------------------- */
@@ -522,7 +514,7 @@ router.post('/comments/:id/approve', async (req, res, next) => {
         payload: { action: 'approved' }
       });
     }
-    res.redirect('back');
+    return afterAction(req, res);
   } catch (e) { next(e); }
 });
 
@@ -539,7 +531,7 @@ router.post('/comments/:id/reject', async (req, res, next) => {
         payload: { action: 'rejected' }
       });
     }
-    res.redirect('back');
+    return afterAction(req, res);
   } catch (e) { next(e); }
 });
 
@@ -547,7 +539,7 @@ router.post('/comments/:id/reject', async (req, res, next) => {
 router.post('/comments/:id/delete', async (req, res, next) => {
   try {
     const c = await Comment.findById(req.params.id);
-    if (!c) return res.redirect('back');
+    if (!c) return afterAction(req, res);
 
     const wasApproved = c.status === 'approved';
     const threadId = c.threadId;
@@ -569,7 +561,7 @@ router.post('/comments/:id/delete', async (req, res, next) => {
       });
     }
 
-    res.redirect('back');
+    return afterAction(req, res);
   } catch (e) { next(e); }
 });
 
@@ -589,7 +581,7 @@ router.post('/comments/:id/edit', async (req, res, next) => {
         payload: { action: 'edited_by_mod' }
       });
     }
-    res.redirect('back');
+    return afterAction(req, res);
   } catch (e) { next(e); }
 });
 
@@ -610,10 +602,9 @@ router.post('/comments/:id/reject-with-reason', async (req, res, next) => {
         payload: { action: 'rejected', reason: (req.body.reason || '').slice(0,300) }
       });
     }
-    res.redirect('back');
+    return afterAction(req, res);
   } catch (e) { next(e); }
 });
-
 
 /* ------------------------------- Categories ------------------------------ */
 router.get('/categories', async (_req, res, next) => {
@@ -659,18 +650,14 @@ router.post('/categories/create', async (req, res, next) => {
       slug: sanitizeHtml((slug || '').slice(0, 80), { allowedTags: [], allowedAttributes: {} }),
       order: Number(order) || 0,
     });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 router.post('/categories/:id/delete', async (req, res, next) => {
   try {
     await Category.findByIdAndDelete(req.params.id);
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 
 /* -------------------------------- Reports -------------------------------- */
@@ -707,10 +694,8 @@ router.post('/reports/:id/resolve', async (req, res, next) => {
       status: 'resolved',
       resolvedAt: new Date(),
     });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 
 /* --------------------------------- Polls --------------------------------- */
@@ -753,8 +738,7 @@ router.post('/polls/create', async (req, res, next) => {
   try {
     const { shop, threadId, question, options } = req.body || {};
     const cleanedQ = sanitizeHtml((question || '').slice(0, 160), {
-      allowedTags: [],
-      allowedAttributes: {},
+      allowedTags: [], allowedAttributes: {},
     });
 
     const parsed = (options || '')
@@ -773,18 +757,14 @@ router.post('/polls/create', async (req, res, next) => {
       options: parsed,
     });
 
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 router.post('/polls/:id/close', async (req, res, next) => {
   try {
     await Poll.findByIdAndUpdate(req.params.id, { status: 'closed' });
-    res.redirect('back');
-  } catch (e) {
-    next(e);
-  }
+    return afterAction(req, res);
+  } catch (e) { next(e); }
 });
 
 /* -------------------------- 4.3 CSV Exports ----------------------------- */
@@ -801,29 +781,18 @@ router.get('/export', async (req, res, next) => {
 
     let docs = [];
     switch (type) {
-      case 'threads':
-        docs = await Thread.find(base).lean();
-        break;
-      case 'comments':
-        docs = await Comment.find(base).lean();
-        break;
-      case 'votes':
-        docs = await Vote.find(base).lean();
-        break;
-      case 'polls':
-        docs = await Poll.find(base).lean();
-        break;
-      default:
-        return res.status(400).send('Invalid type');
+      case 'threads': docs = await Thread.find(base).lean(); break;
+      case 'comments': docs = await Comment.find(base).lean(); break;
+      case 'votes': docs = await Vote.find(base).lean(); break;
+      case 'polls': docs = await Poll.find(base).lean(); break;
+      default: return res.status(400).send('Invalid type');
     }
 
     const csv = toCSV(docs);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${type}.csv"`);
     res.send(csv);
-  } catch (e) {
-    next(e);
-  }
+  } catch (e) { next(e); }
 });
 
 /* ------------------------------ Notifications --------------------------- */
@@ -841,9 +810,7 @@ router.get('/notifications', async (_req, res, next) => {
     const fallback = `<!doctype html><html><body style="font-family:system-ui,Segoe UI,Roboto,Arial;margin:24px">
 <h2>Notifications</h2><ul>${list || '<li>(none)</li>'}</ul><p><a href="/admin">Back</a></p></body></html>`;
     renderOrFallback(res, 'notifications', { items }, fallback);
-  } catch (e) {
-    next(e);
-  }
+  } catch (e) { next(e); }
 });
 
 export default router;
