@@ -114,7 +114,7 @@
     return api('/ping').then(function (j) { return { ok: true, json: j }; }, function (e) { return { ok: false, error: e }; });
   }
 
-  /* ---------- Markdown helpers / simple RTE (TC Posting & Threading) ---------- */
+  /* ---------- Markdown helpers / simple RTE ---------- */
   function surroundSelection(textarea, before, after) {
     textarea.focus();
     var start = textarea.selectionStart || 0;
@@ -212,66 +212,7 @@
     qs('#rte-bar', root).appendChild(bar);
   }
 
-  // right after: template(root);
-
-  // 🔔 Notifications wiring
-  var badge = null, panel = null;
-
-  function loadNotifs() {
-    // /notifications returns { success, items, unread }
-    return api('/notifications', { qs: { customer_id: cid, limit: 20 } })
-      .then(function (j) {
-        badge = badge || qs('#notif-badge', root);
-        panel = panel || qs('#notif-panel', root);
-
-        // unread count
-        var unread = (j && j.unread) || 0;
-        if (badge) {
-          badge.textContent = unread;
-          badge.style.display = unread > 0 ? 'inline-block' : 'none';
-        }
-
-        // list
-        var items = (j && j.items) || [];
-        if (panel) panel.innerHTML = renderNotifs(items);
-      })
-      .catch(function () { /* ignore network hiccups */ });
-  }
-
-  var bell = qs('#notif-btn', root);
-  if (bell) {
-    bell.addEventListener('click', function () {
-      panel = panel || qs('#notif-panel', root);
-      var open = panel.style.display === 'block';
-
-      if (!open) {
-        loadNotifs().then(function () {
-          panel.style.display = 'block';
-          // mark all as read when opening the panel
-          api('/notifications/mark-read', { method: 'POST', body: { customer_id: cid, all: true } })
-            .then(function () { if (badge) badge.style.display = 'none'; })
-            .catch(function () { });
-        });
-      } else {
-        panel.style.display = 'none';
-      }
-    });
-
-    // optional: click-away close
-    document.addEventListener('click', function (e) {
-      panel = panel || qs('#notif-panel', root);
-      if (!panel) return;
-      if (!panel.contains(e.target) && !bell.contains(e.target)) {
-        panel.style.display = 'none';
-      }
-    });
-
-    // keep badge fresh every minute + first paint
-    setInterval(loadNotifs, 60000);
-    loadNotifs();
-  }
-
-
+  /* ---------- notif item renderers ---------- */
   function notifItemHTML(n) {
     var when = new Date(n.createdAt).toLocaleString();
     var body = '';
@@ -286,8 +227,8 @@
       '<div><b>' + body + '</b></div>' +
       (n.payload && n.payload.threads
         ? '<div class="community-meta">' +
-        (n.payload.threads || []).map(function (t) { return '• ' + escapeHtml(t.title) + ' (▲ ' + (t.votes || 0) + ')'; }).join('<br>') +
-        '</div>'
+          (n.payload.threads || []).map(function (t) { return '• ' + escapeHtml(t.title) + ' (▲ ' + (t.votes || 0) + ')'; }).join('<br>') +
+          '</div>'
         : '') +
       '<div class="community-meta">' + when + '</div>' +
       '</li>';
@@ -296,9 +237,6 @@
     if (!list || !list.length) return '<div class="community-meta">No notifications</div>';
     return '<ul style="margin:0;padding:0;list-style:none">' + list.map(notifItemHTML).join('') + '</ul>';
   }
-
-
-
 
   /* ---------- thread list rendering ---------- */
   function threadActionsHTML(t, cid) {
@@ -323,7 +261,6 @@
   }
 
   function renderThreads(container, items, cid) {
-    var now = new Date();
     container.insertAdjacentHTML('beforeend', (items || []).map(function (t) {
       var isClosed = !!(t.closedAt || t.closed);
       var closedBadge = isClosed ? '<span class="badge">Closed</span>' : '';
@@ -478,7 +415,6 @@
       .catch(function () { box.innerHTML = ''; });
   }
 
-
   /* ---------- reply UI inside comments ---------- */
   function wireCommentReplies(container, cid, SHOP) {
     container.addEventListener('click', function (ev) {
@@ -542,8 +478,7 @@
             display_name: displayName
           }
         })
-          .then(function (out) {
-            // Optimistic UI (TC-102): append "pending" reply immediately
+          .then(function () {
             var pending = document.createElement('div');
             pending.className = 'community-meta';
             pending.textContent = 'Reply submitted for review.';
@@ -608,7 +543,7 @@
       el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); doVote(); } });
     });
 
-    // Comment submit (top-level under each thread card) – optimistic (TC-102)
+    // Comment submit (top-level under each thread card) – optimistic
     qsa('.comment-btn', container).forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (!cid) return alert('Please log in to participate.');
@@ -620,7 +555,6 @@
         var displayName = anon ? '' : getCustomerName();
         var text = input.value;
 
-        // optimistic append
         var box = document.getElementById('comments-' + tid);
         if (box) {
           var pending = document.createElement('div');
@@ -639,7 +573,7 @@
             display_name: displayName
           }
         })
-          .then(function (_out) {
+          .then(function () {
             var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
             localStorage.removeItem(key);
             input.value = '';
@@ -660,7 +594,7 @@
       });
     });
 
-    // Thread edit/delete within window (TC-014 / TC-024 for thread)
+    // Thread edit/delete within window
     container.addEventListener('click', function (ev) {
       var tEdit = ev.target.closest('.t-edit');
       var tDelete = ev.target.closest('.t-delete');
@@ -687,7 +621,6 @@
         api('/threads/' + ids, { method: 'PATCH', body: { title: title, body: body, customer_id: getCustomerId() } })
           .then(function (out) {
             if (!out || !out.success) throw new Error((out && out.message) || 'Edit failed');
-            // update UI
             card.querySelector('strong').textContent = title;
             card.querySelector('div:nth-child(3)').textContent = body;
             qs('#t-edit-' + ids, container).style.display = 'none';
@@ -771,12 +704,10 @@
         wireThreadActions(container, cid, SHOP);
 
         container.__state.next = data.next || null;
-        // show/attach infinite loader
         var btn = qs('#load-more', root);
         if (container.__state.next) {
           moreWrap.style.display = 'block';
           btn.onclick = function () { loadThreads(container, tMsg, cid, SHOP, root, { reset: false }); };
-          // IntersectionObserver for auto load
           if (!container.__io) {
             var io = new IntersectionObserver(function (entries) {
               entries.forEach(function (e) {
@@ -897,6 +828,51 @@
       }
 
       template(root);
+
+      /* ===== 🔔 Notifications wiring (INSIDE mount so root/cid exist) ===== */
+      var badge = qs('#notif-badge', root);
+      var panel = qs('#notif-panel', root);
+
+      function loadNotifs() {
+        return api('/notifications', { qs: { customer_id: cid, limit: 20 } })
+          .then(function (j) {
+            var unread = (j && j.unread) || 0;
+            if (badge) {
+              badge.textContent = unread;
+              badge.style.display = unread > 0 ? 'inline-block' : 'none';
+            }
+            if (panel) panel.innerHTML = renderNotifs(j.items || []);
+          })
+          .catch(function () { /* ignore */ });
+      }
+
+      var bell = qs('#notif-btn', root);
+      if (bell) {
+        bell.addEventListener('click', function () {
+          var open = panel.style.display === 'block';
+          if (!open) {
+            loadNotifs().then(function () {
+              panel.style.display = 'block';
+              api('/notifications/mark-read', { method: 'POST', body: { customer_id: cid, all: true } })
+                .then(function () { if (badge) badge.style.display = 'none'; });
+            });
+          } else {
+            panel.style.display = 'none';
+          }
+        });
+
+        document.addEventListener('click', function (e) {
+          if (!panel) return;
+          if (!panel.contains(e.target) && !bell.contains(e.target)) {
+            panel.style.display = 'none';
+          }
+        });
+
+        setInterval(loadNotifs, 60000);
+        loadNotifs();
+      }
+      /* ===================== end notifications wiring ===================== */
+
       var tMsg = qs('#t-msg', root);
       var sel = qs('#cat-filter', root);
       var list = qs('#threads', root);
@@ -932,7 +908,6 @@
           var categoryId = sel.value || null;
           var displayName = anon ? '' : getCustomerName();
 
-          // Submit without reloading list – optimistic UX (TC-102)
           api('/threads', {
             method: 'POST',
             body: {
@@ -951,7 +926,6 @@
               if (draft) draft.clear();
               var preview = qs('#thread-preview', root); var toggle = qs('#thread-preview-toggle', root);
               if (preview.style.display === 'block') { preview.style.display = 'none'; qs('#thread-body', root).style.display = 'block'; toggle.textContent = 'Preview'; toggle.setAttribute('aria-pressed', 'false'); }
-              // Optionally insert a local "pending" card at top
               var tmp = {
                 _id: 'tmp-' + Date.now(),
                 title: title + ' (pending review)',
