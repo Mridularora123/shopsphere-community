@@ -9,7 +9,6 @@ import helmet from 'helmet';
 import compression from 'compression';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import morgan from 'morgan';
 
 import authRoutes from './routes/auth.js';
 import proxyRoutes from './routes/proxy.js';
@@ -22,8 +21,11 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 
 /* --------------------------- Trust reverse proxy --------------------------- */
-/* Required for express-rate-limit v7 when X-Forwarded-For is present (Render). */
-app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? true : Number(process.env.TRUST_PROXY ?? 1));
+// Required for express-rate-limit v7 when X-Forwarded-For exists (Render/NGINX).
+app.set(
+  'trust proxy',
+  process.env.TRUST_PROXY === 'true' ? true : Number(process.env.TRUST_PROXY ?? 1)
+);
 
 /* ------------------------- MongoDB connection ----------------------------- */
 mongoose
@@ -32,18 +34,17 @@ mongoose
   .catch((err) => console.error('Mongo error', err));
 
 /* ---------------------------- Security / basics --------------------------- */
-// Allow Shopify Admin to iframe this app; disable Helmet bits that conflict.
 app.use(
   helmet({
     contentSecurityPolicy: false,   // we set our own CSP below
-    frameguard: false,              // remove X-Frame-Options
+    frameguard: false,
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: false,
     crossOriginResourcePolicy: false,
   })
 );
 
-// Minimal CSP for embedded apps
+// Minimal CSP for embedded Shopify apps
 app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
@@ -58,13 +59,12 @@ app.use((req, res, next) => {
 });
 
 app.use(compression());
-app.use(morgan('tiny'));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cors({ origin: '*' }));
 
 /* ------------------------------ Rate limiting ----------------------------- */
-/* Must be AFTER trust proxy and BEFORE routes that rely on req.ip */
+// Must be after trust proxy and before routes using req.ip
 app.use(
   rateLimit({
     windowMs: 60 * 1000,
@@ -78,7 +78,6 @@ app.use(
 app.use(
   express.static(path.join(__dirname, 'public'), {
     setHeaders(res, filePath) {
-      // So Shopify storefront can load cross-origin assets
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       if (filePath.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
@@ -106,15 +105,10 @@ app.get('/', (_req, res) => {
 });
 
 /* --------------------------------- Routes --------------------------------- */
-// OAuth
-app.use('/auth', authRoutes);
-
-// Shopify App Proxy endpoints (your proxy router verifies the signature)
-app.use('/proxy', proxyRoutes);
-app.use('/proxy/api', proxyRoutes);
-
-// Admin moderation UI
-app.use('/admin', adminRoutes);
+app.use('/auth', authRoutes);        // OAuth
+app.use('/proxy', proxyRoutes);      // App Proxy endpoints (also verifies signature)
+app.use('/proxy/api', proxyRoutes);  // optional alias
+app.use('/admin', adminRoutes);      // Admin UI
 
 /* ---------------------------- 404 + Error handlers ------------------------ */
 app.use((req, res) => res.status(404).json({ success: false, message: 'Not found' }));
@@ -122,7 +116,7 @@ app.use((req, res) => res.status(404).json({ success: false, message: 'Not found
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
   console.error('Unhandled error:', err);
-  // Return JSON so Shopify admin “embedded app” doesn’t render a blank page
+  // Return JSON to avoid a blank error screen in embedded admin
   if (req.headers['x-requested-with'] === 'XMLHttpRequest' || req.accepts('json')) {
     return res.status(500).json({ success: false, message: err?.message || 'Internal Server Error' });
   }
