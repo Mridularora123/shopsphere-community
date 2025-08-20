@@ -157,7 +157,7 @@
     // headings
     s = s.replace(/^\s*###\s+(.+)$/gm, '<h3>$1</h3>');
     s = s.replace(/^\s*##\s+(.+)$/gm, '<h2>$1</h2>');
-    s = s.replace(/^\s*#\s+(.+)$/gm,  '<h1>$1</h1>');
+    s = s.replace(/^\s*#\s+(.+)$/gm, '<h1>$1</h1>');
 
     // lists (single level)
     s = s.replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>');
@@ -903,7 +903,7 @@
       /* ===== Initialize Toast UI Editor right after template ===== */
       var draft = null;
       ensureToastEditor().then(function () {
-        var ed = new toastui.Editor({
+        const ed = new toastui.Editor({
           el: qs('#thread-editor', root),
           height: '320px',
           initialEditType: 'wysiwyg',
@@ -911,23 +911,23 @@
           usageStatistics: false,
           placeholder: 'Write details... Supports headings, lists, links, and images.',
           toolbarItems: [
-            ['heading','bold','italic','underline','strike'],
-            ['ul','ol','task'],
-            ['link','image'],
-            ['quote','code','codeblock']
+            ['heading', 'bold', 'italic', 'underline', 'strike'],
+            ['ul', 'ol', 'task'],
+            ['link', 'image'],
+            ['quote', 'code', 'codeblock']
           ]
         });
         root.__threadEditor = ed;
 
-        // Image by URL (no file upload)
         ed.removeHook('addImageBlobHook');
         ed.addHook('addImageBlobHook', function (blob, cb) {
-          var url = prompt('Paste image URL (https://)'); if (url) cb(url, 'image');
+          const url = prompt('Paste image URL (https://)');
+          if (url) cb(url, 'image');
         });
 
-        // Start draft autosave/preview now that editor exists
-        draft = wireThreadDraft(root, SHOP, cid);
+        wireThreadDraft(root, SHOP, cid); // keep autosave/preview
       });
+
 
       /* ===== 🔔 Notifications wiring (INSIDE mount so root/cid exist) ===== */
       var badge = qs('#notif-badge', root);
