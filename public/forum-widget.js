@@ -35,6 +35,14 @@
     if (document.getElementById('community-style')) return;
     var css = [
       ':root{--c-bg:#fff;--c-soft:#f6f7f9;--c-soft2:#f0f2f5;--c-border:#e5e7eb;--c-text:#111827;--c-mut:#6b7280;--c-accent:#ff7a59;--c-accent-2:#0a66c2;--radius:12px;--shadow:0 1px 2px rgba(0,0,0,.06),0 6px 16px rgba(0,0,0,.06)}',
+      /* --- Auth gate (login required) --- */
+      '.auth-gate{display:flex;flex-direction:column;align-items:flex-start;gap:10px}',
+      '.auth-title{font-size:18px;font-weight:700;color:var(--c-text)}',
+      '.auth-desc{color:var(--c-mut);margin:0}',
+      '.auth-features{margin:0 0 4px 18px;color:var(--c-text)}',
+      '.auth-features li{margin:2px 0}',
+      '.auth-actions{display:flex;gap:8px;flex-wrap:wrap}',
+      '.auth-actions .community-btn{text-decoration:none}',
       '.community-box{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:1100px;margin:0 auto;padding:8px}',
       '.community-layout{display:grid;grid-template-columns:260px 1fr;gap:18px}',
       '.community-sidebar{position:sticky;top:12px;height:fit-content}',
@@ -588,47 +596,47 @@
 
     // Voting
     // Voting (delegated so it works for comments loaded later)
-function handleVote(el) {
-  if (!cid) { alert('Please log in to participate.'); return; }
-  if (el.__voteLock) return;
-  el.__voteLock = true;
+    function handleVote(el) {
+      if (!cid) { alert('Please log in to participate.'); return; }
+      if (el.__voteLock) return;
+      el.__voteLock = true;
 
-  var id = el.getAttribute('data-id');
-  var targetType = el.getAttribute('data-type') || 'thread';
-  var current = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10);
-  var wasVoted = el.getAttribute('data-voted') === '1';
+      var id = el.getAttribute('data-id');
+      var targetType = el.getAttribute('data-type') || 'thread';
+      var current = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10);
+      var wasVoted = el.getAttribute('data-voted') === '1';
 
-  api('/votes/toggle', { method: 'POST', body: { targetType: targetType, targetId: id, customer_id: cid } })
-    .then(function (out) {
-      if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
-      var nowVoted = !!out.voted;
-      var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
-      var next = Math.max(0, current + delta);
+      api('/votes/toggle', { method: 'POST', body: { targetType: targetType, targetId: id, customer_id: cid } })
+        .then(function (out) {
+          if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
+          var nowVoted = !!out.voted;
+          var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
+          var next = Math.max(0, current + delta);
 
-      el.setAttribute('data-voted', nowVoted ? '1' : '0');
-      el.setAttribute('aria-pressed', nowVoted ? 'true' : 'false');
-      el.textContent = '▲ ' + next;
-      if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
-    })
-    .catch(function (e) { alert('Vote failed: ' + e.message); })
-    .finally(function () { el.__voteLock = false; });
-}
+          el.setAttribute('data-voted', nowVoted ? '1' : '0');
+          el.setAttribute('aria-pressed', nowVoted ? 'true' : 'false');
+          el.textContent = '▲ ' + next;
+          if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
+        })
+        .catch(function (e) { alert('Vote failed: ' + e.message); })
+        .finally(function () { el.__voteLock = false; });
+    }
 
-// Clicks on any vote button (threads or comments), including ones added later
-container.addEventListener('click', function (ev) {
-  var el = ev.target.closest('.vote');
-  if (el && container.contains(el)) handleVote(el);
-});
+    // Clicks on any vote button (threads or comments), including ones added later
+    container.addEventListener('click', function (ev) {
+      var el = ev.target.closest('.vote');
+      if (el && container.contains(el)) handleVote(el);
+    });
 
-// Keyboard support for vote buttons
-container.addEventListener('keydown', function (ev) {
-  var el = ev.target.closest('.vote');
-  if (!el) return;
-  if (ev.key === 'Enter' || ev.key === ' ') {
-    ev.preventDefault();
-    handleVote(el);
-  }
-});
+    // Keyboard support for vote buttons
+    container.addEventListener('keydown', function (ev) {
+      var el = ev.target.closest('.vote');
+      if (!el) return;
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        handleVote(el);
+      }
+    });
 
 
     // Submit new comment
@@ -853,6 +861,9 @@ container.addEventListener('keydown', function (ev) {
       opts = opts || {};
       var root = qs(selector); if (!root) return;
 
+      // Ensure styles exist even if we exit early for login gate
+      injectStyles();
+
       if (isDesignMode()) {
         root.innerHTML = '<div class="community-box">Community widget preview is unavailable in the Theme Editor. Open the storefront (View store) to test.</div>';
         return;
@@ -864,11 +875,28 @@ container.addEventListener('keydown', function (ev) {
       var SHOP = getShop();
       var cid = getCustomerId();
 
-      // private forum → require login
+      // private forum → require login (professional card)
       if (!cid) {
-        root.innerHTML = '<div class="community-box">Please <a href="/account/login">log in</a> to view and participate in the community.</div>';
+        root.innerHTML = [
+          '<div class="community-box">',
+          '  <div class="community-card auth-gate" role="region" aria-labelledby="auth-title">',
+          '    <div class="auth-title" id="auth-title">Join the community</div>',
+          '    <p class="auth-desc">Sign in to start new threads, up-vote ideas, and reply to others.</p>',
+          '    <ul class="auth-features">',
+          '      <li>Post questions & feedback</li>',
+          '      <li>Vote on ideas you like</li>',
+          '      <li>Get notified about replies</li>',
+          '    </ul>',
+          '    <div class="auth-actions">',
+          '      <a class="community-btn primary" href="/account/login">Sign in</a>',
+          '      <a class="community-btn" href="/account/register">Create account</a>',
+          '    </div>',
+          '  </div>',
+          '</div>'
+        ].join('');
         return;
       }
+
       if (!SHOP) {
         root.innerHTML = '<div class="community-box">Shop domain not detected. Add <meta name="forum-shop" content="{{ shop.permanent_domain }}"> to theme.</div>';
         return;
