@@ -73,6 +73,7 @@
       /* markdown inside posts/comments */
       '.thread-body,.comment-body{color:#0f172a;font-size:15px;line-height:1.6}',
       '.thread-body h1,.comment-body h1{font-size:22px;margin:12px 0 8px;line-height:1.3}',
+      'br{display:none}',
       '.thread-body h2,.comment-body h2{font-size:18px;margin:10px 0 6px;line-height:1.35}',
       '.thread-body h3,.comment-body h3{font-size:16px;margin:8px 0 6px;line-height:1.4}',
       '.thread-body p,.comment-body p{margin:8px 0}',
