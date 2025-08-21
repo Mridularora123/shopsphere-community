@@ -753,6 +753,7 @@ router.get('/categories', async (_req, res, next) => {
       `
 <div class="card">
   <h2>Categories</h2>
+  <p>Use shop domain : 4amjw1-pc.myshopify.com</p>
   <form class="row mt12" action="/admin/categories/create" method="post">
     <input class="input" name="shop" placeholder="shop domain" required />
     <input class="input" name="name" placeholder="name" required />
