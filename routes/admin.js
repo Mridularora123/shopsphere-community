@@ -283,11 +283,11 @@ router.get('/threads/:id', async (req, res, next) => {
   <div class="mt8">${esc((c.body || '').slice(0, 240))}</div>
   <div class="row mt8">
     ${c.status !== 'approved'
-      ? `<form action="/admin/comments/${c._id}/approve" method="post"><button class="btn primary" type="submit">Approve</button></form>`
-      : ''}
+            ? `<form action="/admin/comments/${c._id}/approve" method="post"><button class="btn primary" type="submit">Approve</button></form>`
+            : ''}
     ${c.status !== 'rejected'
-      ? `<form action="/admin/comments/${c._id}/reject" method="post"><button class="btn" type="submit">Reject</button></form>`
-      : ''}
+            ? `<form action="/admin/comments/${c._id}/reject" method="post"><button class="btn" type="submit">Reject</button></form>`
+            : ''}
     <form action="/admin/comments/${c._id}/edit" method="post">
       <input type="hidden" name="body" value="${esc((c.body || '').slice(0, 5000))}">
       <button class="btn" type="submit">Quick Save</button>

@@ -50,11 +50,11 @@ app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
     "default-src 'self' https: data: blob:; " +
-      "script-src 'self' https: 'unsafe-inline'; " +
-      "style-src 'self' https: 'unsafe-inline'; " +
-      "img-src 'self' https: data:; " +
-      "connect-src 'self' https:; " +
-      "frame-ancestors https://admin.shopify.com https://*.myshopify.com;"
+    "script-src 'self' https: 'unsafe-inline'; " +
+    "style-src 'self' https: 'unsafe-inline'; " +
+    "img-src 'self' https: data:; " +
+    "connect-src 'self' https:; " +
+    "frame-ancestors https://admin.shopify.com https://*.myshopify.com;"
   );
   next();
 });
@@ -116,7 +116,7 @@ function noStore(_req, res, next) {
 //    Your route handlers can rely on req.shop being set.
 function attachShopFromProxy(req, _res, next) {
   const fromHeader = (req.get('X-Shopify-Shop-Domain') || '').toLowerCase().trim();
-  const fromQuery  = (req.query.shop || '').toLowerCase().trim();
+  const fromQuery = (req.query.shop || '').toLowerCase().trim();
   // prefer header, fallback to query
   req.shop = fromHeader || fromQuery || '';
   next();

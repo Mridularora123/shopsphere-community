@@ -194,28 +194,22 @@
   function api(path, opts) {
     opts = opts || {};
     var base = (window.__FORUM_PROXY__ || '/apps/community') + path;
-    var shop = window.__FORUM_SHOP__ || getShop();
 
-    var merged = Object.assign({}, opts.qs || {});
-    if (shop) merged.shop = shop;
-
-    // 🔥 Bust Shopify App Proxy CDN cache for dynamic JSON
-    var method = (opts.method || 'GET').toUpperCase();
-    if (method === 'GET') merged._cb = Date.now();
-
-    var q = toQuery(merged);
+    // ⬇️ IMPORTANT: don't include shop from the browser
+    var q = toQuery(opts.qs || {});
     var url = base + (base.indexOf('?') >= 0 ? (q ? '&' + q.slice(1) : '') : q);
 
     return withTimeout(fetch(url, {
-      method: method,
+      method: opts.method || 'GET',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: method === 'GET' ? undefined : (opts.body ? JSON.stringify(opts.body) : undefined)
+      body: opts.body ? JSON.stringify(opts.body) : undefined
     })).then(function (r) {
       if (!r.ok) { var e = new Error('API error: ' + r.status); e.status = r.status; throw e; }
       return r.json();
     });
   }
+
 
 
   function pingProxy() {
