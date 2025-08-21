@@ -114,10 +114,12 @@ function noStore(_req, res, next) {
 
 // 2) Normalize the shop domain from the proxy (header or query)
 //    Your route handlers can rely on req.shop being set.
+// server.js
 function attachShopFromProxy(req, res, next) {
-  const header = (req.get('X-Shopify-Shop-Domain') || '').toLowerCase().trim();
-  if (!header) {
-    console.warn('Missing X-Shopify-Shop-Domain on proxy request', {
+  // App Proxy gives the shop in the query; the request is HMAC-signed.
+  const shop = String(req.query.shop || '').toLowerCase().trim();
+  if (!shop) {
+    console.warn('Missing shop in App Proxy query', {
       path: req.path,
       query: req.query,
       xfwdHost: req.get('x-forwarded-host'),
@@ -125,12 +127,13 @@ function attachShopFromProxy(req, res, next) {
     });
     return res.status(400).json({
       success: false,
-      message: 'Missing proxy header. Ensure App Proxy points to /proxy with no extra query params.',
+      message: 'Missing shop in proxy query. Check App Proxy settings.',
     });
   }
-  req.shop = header;
+  req.shop = shop;
   next();
 }
+
 
 
 /* --------------------------------- Routes --------------------------------- */

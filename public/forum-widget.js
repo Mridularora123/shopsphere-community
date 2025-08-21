@@ -195,7 +195,7 @@
     opts = opts || {};
     var base = (window.__FORUM_PROXY__ || '/apps/community') + path;
 
-    // ⬇️ IMPORTANT: don't include shop from the browser
+    // ⛔️ Do NOT add ?shop=... from the browser.
     var q = toQuery(opts.qs || {});
     var url = base + (base.indexOf('?') >= 0 ? (q ? '&' + q.slice(1) : '') : q);
 
@@ -209,6 +209,7 @@
       return r.json();
     });
   }
+
 
 
 
