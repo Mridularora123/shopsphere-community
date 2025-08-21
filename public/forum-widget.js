@@ -194,12 +194,9 @@
   function api(path, opts) {
     opts = opts || {};
     var base = (window.__FORUM_PROXY__ || '/apps/community') + path;
-    var shop = window.__FORUM_SHOP__ || getShop();
 
-    var merged = Object.assign({}, opts.qs || {});
-    if (shop) merged.shop = shop;
-
-    var q = toQuery(merged);
+    // Do NOT append ?shop=... ; server derives shop from the app-proxy signature
+    var q = toQuery(opts.qs || {});
     var url = base + (base.indexOf('?') >= 0 ? (q ? '&' + q.slice(1) : '') : q);
 
     return withTimeout(fetch(url, {
@@ -212,6 +209,7 @@
       return r.json();
     });
   }
+
   function pingProxy() {
     return api('/ping').then(function (j) { return { ok: true, json: j }; }, function (e) { return { ok: false, error: e }; });
   }
@@ -690,7 +688,7 @@
   }
 
   function loadCategories(sel, tMsg, SHOP) {
-    return api('/categories', { qs: { shop: SHOP } })
+    return api('/categories')
       .then(function (data) {
         var opts = ['<option value="">All categories</option>'].concat((data.items || []).map(function (c) {
           return '<option value="' + c._id + '">' + escapeHtml(c.name) + '</option>';
