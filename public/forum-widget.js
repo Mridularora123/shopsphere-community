@@ -885,7 +885,7 @@
           '    <ul class="auth-features">',
           '      <li>Post questions & feedback</li>',
           '      <li>Vote on ideas you like</li>',
-          '      <li>Get notified about replies</li>',
+          '      <li>Join Polls</li>',
           '    </ul>',
           '    <div class="auth-actions">',
           '      <a class="community-btn primary" href="/account/login">Sign in</a>',
