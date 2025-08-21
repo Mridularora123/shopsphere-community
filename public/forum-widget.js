@@ -45,10 +45,7 @@
       '.topic-item:hover{background:var(--c-soft)}',
       '.topic-item.active{background:#fff;border-color:var(--c-accent);box-shadow:0 0 0 3px rgba(255,122,89,.15)}',
       '.topic-hash{color:var(--c-mut);}',
-
-      /* NOTE: this was in your last paste; leaving as-is per your request */
       'br{display:none}',
-
       '.community-main .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}',
       '.community-input,.community-textarea{flex:1 1 auto;padding:10px 12px;border:1px solid var(--c-border);border-radius:10px;background:#fff;min-width:0}',
       '.community-textarea{width:100%}',
@@ -68,13 +65,13 @@
       '.thread-body,.comment-body{color:var(--c-text);font-size:15px;line-height:1.58;margin-top:6px}',
       '.thread-body img,.comment-body img{max-width:100%;height:auto;border-radius:8px;display:block;margin:10px 0}',
       '.thread-body a,.comment-body a{color:var(--c-accent-2);text-decoration:underline}',
+      /* reduce big default margins just inside our bodies */
       '.thread-body h1,.comment-body h1{font-size:22px;margin:8px 0 6px 0}',
       '.thread-body h2,.comment-body h2{font-size:18px;margin:6px 0 4px 0}',
       '.thread-body ul,.comment-body ul{margin:6px 0 6px 18px}',
       '.reply-form .community-textarea{min-height:60px}',
       '.comment-actions{display:inline-flex;gap:8px;margin-left:8px}',
       '.s-item:hover{background:#f6f6f6}',
-
       /* comments accordion */
       '.comments-accordion{margin-top:8px;border-top:1px dashed var(--c-border);padding-top:8px}',
       '.comments-accordion>summary{cursor:pointer;user-select:none;list-style:none}',
@@ -82,17 +79,9 @@
       '.comments-accordion>summary .summary-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--c-border);border-radius:999px;background:#fff}',
       '.replies details{margin:6px 0 0 32px}',
       '.replies summary{cursor:pointer;color:var(--c-accent-2)}',
-
       '.community-row{display:flex;gap:8px;align-items:center}',
       '.filter-bar{display:flex;gap:8px;flex-wrap:wrap}',
       '.notif-panel{position:fixed;right:12px;top:90px;background:#fff;border:1px solid var(--c-border);border-radius:10px;width:380px;max-height:320px;overflow:auto;padding:8px;box-shadow:0 8px 20px rgba(0,0,0,.08);z-index:50}',
-
-      /* NEW: small headings + date field labels */
-      '.section-h{font-weight:800;font-size:20px;margin:10px 0 8px;color:var(--c-text)}',
-      '.sub-h{font-weight:700;font-size:16px;margin:12px 0 6px;color:#374151}',
-      '.date-field{display:flex;flex-direction:column;gap:4px}',
-      '.date-field .lbl{font-size:12px;color:var(--c-mut);margin-left:6px}',
-
       '@media (max-width:980px){.community-layout{grid-template-columns:1fr}}',
       '@media (max-width:600px){.community-btn{width:auto}.community-input{min-width:180px}}'
     ].join('');
@@ -262,15 +251,6 @@
     return bar;
   }
 
-  /* ---------- helpers for headings ---------- */
-  function updateCategoryHeading(root) {
-    var sel = qs('#cat-filter', root);
-    var h = qs('#category-heading', root);
-    if (!h || !sel) return;
-    var label = (sel.dataset && sel.dataset.label) ? sel.dataset.label : 'All';
-    h.textContent = label + ' — Threads';
-  }
-
   /* ---------- UI template (two-column layout) ---------- */
   function template(root) {
     injectStyles();
@@ -287,41 +267,33 @@
       '    </aside>',
       '    <main class="community-main">',
       '      <div id="t-msg" class="community-meta" aria-live="polite" style="min-height:18px;margin:6px 0"></div>',
-
       '      <div class="controls">',
       '        <div style="position:relative;flex:1">',
       '          <input id="forum-search" class="community-input" aria-label="Search" placeholder="Search titles, tags, categories…" style="min-width:240px;width:100%"/>',
       '          <div id="forum-suggest" style="position:absolute;top:38px;left:0;right:0;background:#fff;border:1px solid #e5e7eb;display:none;z-index:5;border-radius:10px;overflow:hidden"></div>',
       '        </div>',
       '        <div class="filter-bar">',
-
       '          <select id="forum-sort" class="community-input" aria-label="Sort" style="width:auto">',
       '            <option value="">New</option>',
       '            <option value="top">Top</option>',
       '            <option value="discussed">Most discussed</option>',
       '            <option value="hot">Hot</option>',
       '          </select>',
-
-      '          <div class="date-field">',
-      '            <span class="lbl">From</span>',
-      '            <input id="forum-from" type="date" class="community-input" aria-label="From date" placeholder="dd-mm-yyyy" style="width:auto"/>',
-      '          </div>',
-      '          <div class="date-field">',
-      '            <span class="lbl">To</span>',
-      '            <input id="forum-to" type="date" class="community-input" aria-label="To date" placeholder="dd-mm-yyyy" style="width:auto"/>',
-      '          </div>',
-
+      '          <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
+      '            <option value="day">Day</option>',
+      '            <option value="week" selected>Week</option>',
+      '            <option value="month">Month</option>',
+      '          </select>',
+      '          <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto"/>',
+      '          <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto"/>',
       '          <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
       '          <button id="notif-btn" class="community-btn" type="button" style="position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
       '          <div id="notif-panel" class="notif-panel" style="display:none"></div>',
       '        </div>',
       '      </div>',
-
-      '      <div id="thread-form-heading" class="sub-h">Start a new thread</div>',
       '      <div id="rte-bar"></div>',
       '      <textarea id="thread-body" class="community-textarea" rows="4" placeholder="Write details... Supports Markdown for headings, lists, links, and images."></textarea>',
       '      <div id="thread-preview" style="display:none;background:var(--c-soft);border:1px solid var(--c-border);padding:10px;border-radius:10px;"></div>',
-
       '      <div class="community-row" style="margin-top:8px">',
       '        <input id="thread-title" class="community-input" aria-label="Thread title" placeholder="Start a new thread (title)"/>',
       '        <input id="thread-tags" class="community-input" aria-label="Tags" placeholder="tags (comma separated)"/>',
@@ -329,8 +301,6 @@
       '        <button id="thread-preview-toggle" class="community-btn" type="button" aria-pressed="false">Preview</button>',
       '        <button id="thread-submit" class="community-btn primary">Post</button>',
       '      </div>',
-
-      '      <h2 id="category-heading" class="section-h">All — Threads</h2>',
       '      <div id="threads" role="list"></div>',
       '      <div id="load-more-wrap" style="text-align:center;margin:12px 0;display:none">',
       '        <button id="load-more" class="community-btn" type="button" aria-label="Load more threads">Load more</button>',
@@ -344,11 +314,6 @@
     var body = qs('#thread-body', root);
     var bar = makeToolbar(body);
     qs('#rte-bar', root).appendChild(bar);
-
-    // initialize heading once template is in DOM
-    var selHidden = qs('#cat-filter', root);
-    if (selHidden) selHidden.dataset.label = 'All';
-    updateCategoryHeading(root);
   }
 
   /* ---------- notifications UI ---------- */
@@ -442,7 +407,7 @@
   /* ---------- comments (with reply dropdowns) ---------- */
   function renderCommentTree(list, cid) {
     function one(c, depth) {
-      var pad = 'style="margin-left:' + (depth * 0) + 'px"';
+      var pad = 'style="margin-left:' + (depth * 0) + 'px"'; // visual offset handled by replies <details>
       var anon = c && c.author && c.author.isAnonymous;
       var name = anon ? 'anon' : (c && c.author && (c.author.displayName || c.author.name) || 'anon');
       var safeName = escapeHtml(name);
@@ -474,7 +439,7 @@
   function loadCommentsForThread(tid, cid) {
     var box = document.getElementById('comments-' + tid);
     if (!box) return;
-    if (box.__loaded) return;
+    if (box.__loaded) return; // only load once when accordion opens
     box.innerHTML = '<div class="community-meta">Loading comments…</div>';
     api('/comments', { qs: { threadId: tid } })
       .then(function (j) {
@@ -611,6 +576,7 @@
 
   /* ---------- wire actions on threads ---------- */
   function wireThreadActions(container, cid, SHOP) {
+    // Save comment drafts by thread
     qsa('.comment-input', container).forEach(function (input) {
       var tid = input.getAttribute('data-tid');
       var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
@@ -620,6 +586,7 @@
       }, 300));
     });
 
+    // Voting
     qsa('.vote', container).forEach(function (el) {
       el.setAttribute('role', 'button');
       el.setAttribute('tabindex', '0');
@@ -650,6 +617,7 @@
       el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); doVote(); } });
     });
 
+    // Submit new comment
     qsa('.comment-btn', container).forEach(function (btn) {
       btn.addEventListener('click', function () {
         if (!cid) return alert('Please log in to participate.');
@@ -676,12 +644,13 @@
       });
     });
 
+    // Lazy-load comments when accordion opens
     qsa('.comments-accordion', container).forEach(function (d) {
       d.addEventListener('toggle', function () {
         if (d.open) {
           var tid = d.getAttribute('data-tid');
           loadCommentsForThread(tid, cid);
-          loadPoll(tid, SHOP, cid);
+          loadPoll(tid, SHOP, cid); // if any
         }
       });
     });
@@ -713,10 +682,7 @@
             var btn = e.target.closest('.topic-item'); if (!btn) return;
             qsa('.topic-item', list).forEach(function (b) { b.classList.remove('active'); });
             btn.classList.add('active');
-            var label = btn.textContent.replace(/^#\s*/, '').trim();
             sel.value = btn.getAttribute('data-id') || '';
-            sel.dataset.label = label || 'All';
-            updateCategoryHeading(document);
             // trigger refresh outside:
             var ev = new CustomEvent('topic-change', { bubbles: true });
             list.dispatchEvent(ev);
@@ -766,6 +732,7 @@
         var items = data.items || [];
         loading(container, false);
         renderThreads(container, items, cid);
+        // Comments now lazy-loaded when each accordion is opened
         wireThreadActions(container, cid, SHOP);
 
         container.__state.next = data.next || null;
@@ -883,6 +850,7 @@
       var SHOP = getShop();
       var cid = getCustomerId();
 
+      // private forum → require login
       if (!cid) {
         root.innerHTML = '<div class="community-box">Please <a href="/account/login">log in</a> to view and participate in the community.</div>';
         return;
@@ -953,18 +921,11 @@
         qs('#forum-apply', root).addEventListener('click', function () { loadNow(); });
 
         wireSuggest(root, SHOP, loadNow);
-        loadCategories(sel, tMsg, SHOP).then(function () {
-          // ensure the initial category heading shows "All — Threads"
-          sel.dataset.label = sel.dataset.label || 'All';
-          updateCategoryHeading(root);
-          return loadNow();
-        });
+        loadCategories(sel, tMsg, SHOP).then(function () { return loadNow(); });
 
+        // React to sidebar topic clicks
         var topicList = qs('#topic-list', root);
-        if (topicList) topicList.addEventListener('topic-change', function () {
-          updateCategoryHeading(root);
-          loadNow();
-        });
+        if (topicList) topicList.addEventListener('topic-change', function () { loadNow(); });
 
         var draft = wireThreadDraft(root, SHOP, cid);
         qs('#thread-submit', root).addEventListener('click', function () {
