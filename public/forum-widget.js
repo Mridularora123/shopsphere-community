@@ -392,7 +392,7 @@
         '<div class="community-card" role="listitem">',
         '  <div class="card-head">',
         '    <div class="thread-title">' + escapeHtml(t.title) + ' ' + pinnedBadge + ' ' + closedBadge + '</div>',
-        '    <button class="vote" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0">▲ ' + votes + '</button>',
+        '    <button class="vote" type="button" role="button" tabindex="0" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0">▲ ' + votes + '</button>',
         '  </div>',
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
         '  <div class="thread-body">' + renderMarkdown(t.body || '') + '</div>',
@@ -422,7 +422,7 @@
 
       var self =
         '<div class="community-comment" ' + pad + '>' +
-        '<button class="vote" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="margin-right:8px">▲ ' + votes + '</button>' +
+        '<button class="vote" type="button" role="button" tabindex="0" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="margin-right:8px">▲ ' + votes + '</button>' +
         '<b>' + safeName + '</b>: <span class="comment-body">' + renderMarkdown(c.body || '') + '</span>' +
         ' <span class="comment-actions">' + replyBtn + ' ' + selfActions + '</span>' +
         '</div>';
@@ -587,35 +587,49 @@
     });
 
     // Voting
-    qsa('.vote', container).forEach(function (el) {
-      el.setAttribute('role', 'button');
-      el.setAttribute('tabindex', '0');
-      el.setAttribute('aria-pressed', 'false');
-      function doVote() {
-        if (!cid) { alert('Please log in to participate.'); return; }
-        if (el.__voteLock) return;
-        el.__voteLock = true;
-        var id = el.getAttribute('data-id');
-        var targetType = el.getAttribute('data-type') || 'thread';
-        var current = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10);
-        var wasVoted = el.getAttribute('data-voted') === '1';
-        api('/votes/toggle', { method: 'POST', body: { targetType: targetType, targetId: id, customer_id: cid } })
-          .then(function (out) {
-            if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
-            var nowVoted = !!out.voted;
-            var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
-            var next = Math.max(0, current + delta);
-            el.setAttribute('data-voted', nowVoted ? '1' : '0');
-            el.setAttribute('aria-pressed', nowVoted ? 'true' : 'false');
-            el.textContent = '▲ ' + next;
-            if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
-          })
-          .catch(function (e) { alert('Vote failed: ' + e.message); })
-          .finally(function () { el.__voteLock = false; });
-      }
-      el.addEventListener('click', doVote);
-      el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); doVote(); } });
-    });
+    // Voting (delegated so it works for comments loaded later)
+function handleVote(el) {
+  if (!cid) { alert('Please log in to participate.'); return; }
+  if (el.__voteLock) return;
+  el.__voteLock = true;
+
+  var id = el.getAttribute('data-id');
+  var targetType = el.getAttribute('data-type') || 'thread';
+  var current = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10);
+  var wasVoted = el.getAttribute('data-voted') === '1';
+
+  api('/votes/toggle', { method: 'POST', body: { targetType: targetType, targetId: id, customer_id: cid } })
+    .then(function (out) {
+      if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
+      var nowVoted = !!out.voted;
+      var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
+      var next = Math.max(0, current + delta);
+
+      el.setAttribute('data-voted', nowVoted ? '1' : '0');
+      el.setAttribute('aria-pressed', nowVoted ? 'true' : 'false');
+      el.textContent = '▲ ' + next;
+      if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
+    })
+    .catch(function (e) { alert('Vote failed: ' + e.message); })
+    .finally(function () { el.__voteLock = false; });
+}
+
+// Clicks on any vote button (threads or comments), including ones added later
+container.addEventListener('click', function (ev) {
+  var el = ev.target.closest('.vote');
+  if (el && container.contains(el)) handleVote(el);
+});
+
+// Keyboard support for vote buttons
+container.addEventListener('keydown', function (ev) {
+  var el = ev.target.closest('.vote');
+  if (!el) return;
+  if (ev.key === 'Enter' || ev.key === ' ') {
+    ev.preventDefault();
+    handleVote(el);
+  }
+});
+
 
     // Submit new comment
     qsa('.comment-btn', container).forEach(function (btn) {
