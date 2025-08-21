@@ -121,11 +121,18 @@ router.use((req, _res, next) => {
 });
 
 /* -------------------------------- Categories --------------------------- */
+// routes/proxy.js (example GET handler)
 router.get('/categories', async (req, res) => {
-  const shop = req.query.shop;
-  const items = await Category.find({ shop }).sort({ order: 1, name: 1 }).lean();
-  res.json({ success: true, items });
+  const shop = (req.shop || req.query.shop || '').toLowerCase().trim();
+  if (!shop) return res.json({ success: true, items: [] });
+
+  const cats = await Category.find({ shop, visibility: 'public' })
+    .sort({ order: 1 })
+    .lean();
+
+  res.json({ success: true, items: cats });
 });
+
 
 /* -------------------------------- Threads ------------------------------ */
 // List threads with filters, search, sort, pagination, periods & date range

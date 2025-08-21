@@ -10,14 +10,11 @@ import compression from 'compression';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 
-// If you want to verify in this file too, uncomment the next line and implement verifyProxy()
-// import crypto from 'crypto';
-
 import authRoutes from './routes/auth.js';
 import proxyRoutes from './routes/proxy.js';
 import adminRoutes from './routes/admin.js';
 
-// ⬇️ models for the weekly digest task (unchanged)
+// Models used by the weekly-digest task
 import Thread from './models/Thread.js';
 import Notification from './models/Notification.js';
 import NotificationSettings from './models/NotificationSettings.js';
@@ -28,12 +25,8 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-/* --------------------------- Trust reverse proxy --------------------------- */
-// Required for rate limiting and correct IPs behind Render/Shopify proxies.
-app.set(
-  'trust proxy',
-  process.env.TRUST_PROXY === 'true' ? true : Number(process.env.TRUST_PROXY ?? 1)
-);
+/* --------------------------- Proxy / networking --------------------------- */
+app.set('trust proxy', process.env.TRUST_PROXY === 'true' ? true : Number(process.env.TRUST_PROXY ?? 1));
 
 /* ------------------------- MongoDB connection ----------------------------- */
 mongoose
@@ -44,7 +37,7 @@ mongoose
 /* ---------------------------- Security / basics --------------------------- */
 app.use(
   helmet({
-    contentSecurityPolicy: false, // we set our own CSP below
+    contentSecurityPolicy: false,   // we set our own CSP below
     frameguard: false,
     crossOriginEmbedderPolicy: false,
     crossOriginOpenerPolicy: false,
@@ -52,7 +45,7 @@ app.use(
   })
 );
 
-// Minimal CSP for embedded Shopify apps and proxy requests
+// Minimal CSP for embedded Shopify apps
 app.use((req, res, next) => {
   res.setHeader(
     'Content-Security-Policy',
@@ -103,7 +96,7 @@ app.set('view engine', 'html');
 /* -------------------------------- Health ---------------------------------- */
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-/* ----------------------- Embedded root (serves HTML) ----------------------- */
+/* ----------------------- Embedded root (serves HTML) ---------------------- */
 app.get('/', (_req, res) => {
   const file = path.join(__dirname, 'public', 'embedded.html');
   let html = fs.readFileSync(file, 'utf8');
@@ -111,39 +104,33 @@ app.get('/', (_req, res) => {
   res.type('html').send(html);
 });
 
-/* --------- Helper: canonical shop extraction for App Proxy hits ----------- */
-/**
- * This middleware extracts a canonical shop domain from the request forwarded by Shopify.
- * - Prefer the X-Shopify-Shop-Domain header (added by Shopify)
- * - Fallback to ?shop= query if needed
- * It then exposes it as req.shop and mirrors to req.query.shop so existing
- * route code that reads req.query.shop keeps working unchanged.
- *
- * NOTE: You said your proxyRoutes already verifies the signature — great.
- * If you want to also verify here, add a verifyProxy(req) check before calling next().
- */
-function setShopFromProxy(req, _res, next) {
-  const hdr = (req.get('X-Shopify-Shop-Domain') || '').toLowerCase();
-  const q = (req.query.shop || '').toLowerCase();
-  const shop = hdr || q || '';
-  req.shop = shop;
-  // Keep compatibility with existing handlers that read req.query.shop:
-  if (shop) req.query.shop = shop;
+/* ------------------------ Proxy helpers (NEW/CHANGED) --------------------- */
+// 1) Stop Shopify proxy responses from being cached by the CDN
+function noStore(_req, res, next) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.set('Pragma', 'no-cache');
+  next();
+}
+
+// 2) Normalize the shop domain from the proxy (header or query)
+//    Your route handlers can rely on req.shop being set.
+function attachShopFromProxy(req, _res, next) {
+  const fromHeader = (req.get('X-Shopify-Shop-Domain') || '').toLowerCase().trim();
+  const fromQuery  = (req.query.shop || '').toLowerCase().trim();
+  // prefer header, fallback to query
+  req.shop = fromHeader || fromQuery || '';
   next();
 }
 
 /* --------------------------------- Routes --------------------------------- */
 app.use('/auth', authRoutes); // OAuth
 
-// ✅ Canonical App Proxy mount point used by your frontend (ForumWidget uses /apps/community)
-app.use('/apps/community', setShopFromProxy, proxyRoutes);
+// IMPORTANT: Your Shopify App Proxy likely maps storefront /apps/community/* to this /proxy path.
+// The two middlewares below ensure: (a) no CDN caching, (b) req.shop is always present for handlers.
+app.use('/proxy', noStore, attachShopFromProxy, proxyRoutes);
+app.use('/proxy/api', noStore, attachShopFromProxy, proxyRoutes); // optional alias
 
-// ✅ Aliases for backwards compatibility (if you still hit /proxy or /proxy/api anywhere)
-app.use('/proxy', setShopFromProxy, proxyRoutes);
-app.use('/proxy/api', setShopFromProxy, proxyRoutes);
-
-// Admin UI
-app.use('/admin', adminRoutes);
+app.use('/admin', adminRoutes); // Admin UI
 
 /* ---------------------- Weekly roundup task (top threads) ------------------ */
 app.post('/tasks/weekly-digest', async (req, res) => {
@@ -175,7 +162,6 @@ app.post('/tasks/weekly-digest', async (req, res) => {
       const threads = row.threads || [];
       if (!threads.length) continue;
 
-      // who wants a weekly digest for this shop?
       const subs = await NotificationSettings.find({ shop, weeklyDigest: true })
         .select('userId')
         .lean();
@@ -208,7 +194,6 @@ app.use((req, res) => res.status(404).json({ success: false, message: 'Not found
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, _next) => {
   console.error('Unhandled error:', err);
-  // Return JSON to avoid a blank error screen in embedded admin
   if (req.headers['x-requested-with'] === 'XMLHttpRequest' || req.accepts('json')) {
     return res.status(500).json({ success: false, message: err?.message || 'Internal Server Error' });
   }

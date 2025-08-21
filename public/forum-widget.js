@@ -194,21 +194,29 @@
   function api(path, opts) {
     opts = opts || {};
     var base = (window.__FORUM_PROXY__ || '/apps/community') + path;
+    var shop = window.__FORUM_SHOP__ || getShop();
 
-    // Do NOT append ?shop=... ; server derives shop from the app-proxy signature
-    var q = toQuery(opts.qs || {});
+    var merged = Object.assign({}, opts.qs || {});
+    if (shop) merged.shop = shop;
+
+    // 🔥 Bust Shopify App Proxy CDN cache for dynamic JSON
+    var method = (opts.method || 'GET').toUpperCase();
+    if (method === 'GET') merged._cb = Date.now();
+
+    var q = toQuery(merged);
     var url = base + (base.indexOf('?') >= 0 ? (q ? '&' + q.slice(1) : '') : q);
 
     return withTimeout(fetch(url, {
-      method: opts.method || 'GET',
+      method: method,
       headers: { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
-      body: opts.body ? JSON.stringify(opts.body) : undefined
+      body: method === 'GET' ? undefined : (opts.body ? JSON.stringify(opts.body) : undefined)
     })).then(function (r) {
       if (!r.ok) { var e = new Error('API error: ' + r.status); e.status = r.status; throw e; }
       return r.json();
     });
   }
+
 
   function pingProxy() {
     return api('/ping').then(function (j) { return { ok: true, json: j }; }, function (e) { return { ok: false, error: e }; });
