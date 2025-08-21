@@ -196,15 +196,29 @@
     var base = (window.__FORUM_PROXY__ || '/apps/community') + path;
     var shop = window.__FORUM_SHOP__ || getShop();
 
+    // merge query
     var merged = Object.assign({}, opts.qs || {});
     if (shop) merged.shop = shop;
+
+    // ---- NEW: force POST for non-GET/POST (Shopify App Proxy limitation)
+    var originalMethod = (opts.method || 'GET').toUpperCase();
+    var method = originalMethod;
+    if (method !== 'GET' && method !== 'POST') {
+      merged._method = method;         // e.g. _method=PUT / DELETE
+      method = 'POST';
+    }
 
     var q = toQuery(merged);
     var url = base + (base.indexOf('?') >= 0 ? (q ? '&' + q.slice(1) : '') : q);
 
+    var headers = { 'Content-Type': 'application/json' };
+    if (originalMethod !== method) {
+      headers['X-HTTP-Method-Override'] = originalMethod; // optional, helpful if you read it server-side
+    }
+
     return withTimeout(fetch(url, {
-      method: opts.method || 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      method: method,
+      headers: headers,
       credentials: 'same-origin',
       body: opts.body ? JSON.stringify(opts.body) : undefined
     })).then(function (r) {
@@ -212,6 +226,7 @@
       return r.json();
     });
   }
+
   function pingProxy() {
     return api('/ping').then(function (j) { return { ok: true, json: j }; }, function (e) { return { ok: false, error: e }; });
   }
