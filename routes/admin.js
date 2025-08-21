@@ -34,51 +34,6 @@ router.use(
 const esc = (s = '') =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-function shell(title, inner) {
-  // Shared lightweight style for all admin fallbacks (no dependency)
-  return `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<title>${title}</title>
-<style>
-:root{
-  --bg:#f7f7fb;--card:#fff;--text:#111827;--muted:#6b7280;--border:#e5e7eb;--primary:#0a66c2;
-  --radius:14px;--shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06);
-}
-*{box-sizing:border-box}
-body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text);margin:0}
-.wrap{max-width:1040px;margin:28px auto;padding:0 16px}
-h1,h2,h3{margin:0 0 12px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
-.subtle{color:var(--muted);font-size:12px}
-a{color:var(--primary);text-decoration:none}
-a:hover{text-decoration:underline}
-ul.clean{list-style:none;margin:0;padding:0}
-li.item{padding:12px;border-top:1px solid var(--border)}
-li.item:first-child{border-top:0}
-.badge{display:inline-block;background:#eef3ff;border:1px solid #dbe6ff;border-radius:999px;padding:2px 8px;font-size:12px;margin-left:6px}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.input,textarea,select{border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:#fff;min-width:0}
-textarea{width:100%}
-.btn{appearance:none;border:1px solid var(--border);background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer}
-.btn:hover{border-color:#cbd5e1;box-shadow:0 1px 0 rgba(0,0,0,.03)}
-.btn.primary{background:var(--primary);color:#fff;border-color:transparent}
-.btn.danger{background:#fff0f0;color:#b91c1c;border-color:#fecaca}
-.kv{display:grid;grid-template-columns:160px 1fr;gap:8px;align-items:center}
-hr{border:none;border-top:1px solid var(--border);margin:16px 0}
-.small{font-size:12px;color:var(--muted)}
-.mt8{margin-top:8px}.mb8{margin-bottom:8px}.mt12{margin-top:12px}
-</style>
-</head>
-<body>
-  <div class="wrap">
-    ${inner}
-  </div>
-</body>
-</html>`;
-}
-
 function renderOrFallback(res, view, data, fallbackHTML) {
   res.render(view, data, (err, html) => {
     if (err) {
@@ -104,6 +59,99 @@ function goBack(req, res, fallback = '/admin') {
   res.redirect(back);
 }
 
+/* ------------------------------ Admin styling ---------------------------- */
+const ADMIN_CSS = `
+:root{
+  --bg:#f7f9fc;--card:#fff;--text:#1f2328;--muted:#57606a;--border:#e6e8f0;
+  --accent:#1473e6;--danger:#c62828;--warning:#b35;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.container{max-width:980px;margin:24px auto;padding:0 16px}
+.header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+.header h1{margin:0;font-size:22px}
+.nav{display:flex;flex-wrap:wrap;gap:8px}
+.nav a{
+  display:inline-block;background:#fff;border:1px solid var(--border);border-radius:8px;
+  padding:6px 10px;text-decoration:none
+}
+.card{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.05);margin:12px 0
+}
+.grid{display:grid;gap:12px}
+@media(min-width:720px){.grid-2{grid-template-columns:1fr 1fr}}
+.list{list-style:none;margin:0;padding:0}
+.list li{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 8px;border-top:1px solid var(--border)
+}
+.list li:first-child{border-top:none}
+.item-main{min-width:0}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-left:8px}
+.btn{
+  appearance:none;border:1px solid var(--border);background:#fff;
+  border-radius:8px;padding:6px 10px;cursor:pointer
+}
+.btn:hover{box-shadow:0 1px 0 rgba(0,0,0,.06)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger{border-color:var(--danger);color:var(--danger)}
+.btn.warn{border-color:var(--warning);color:var(--warning)}
+.btn.ghost{background:#f6f8fa}
+input,textarea,select{
+  width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:#fff
+}
+label{display:block;margin:6px 0 4px;font-weight:600;color:var(--muted)}
+.form-row{display:flex;gap:8px;flex-wrap:wrap}
+.form-row>*{flex:1}
+.badge{display:inline-block;background:#eef;border:1px solid var(--border);padding:2px 6px;border-radius:6px;margin-left:6px;color:var(--muted);font-size:12px}
+pre{
+  background:#f6f8fa;border:1px solid var(--border);border-radius:10px;
+  padding:12px;overflow:auto;white-space:pre-wrap
+}
+.small{font-size:12px;color:var(--muted)}
+hr{border:none;border-top:1px solid var(--border);margin:16px 0}
+`;
+
+// Shared page shell for fallback HTML
+function page(title, innerHTML) {
+  const nav = `
+    <nav class="nav">
+      <a href="/admin/threads">Threads</a>
+      <a href="/admin/comments">Comments</a>
+      <a href="/admin/reports">Reports</a>
+      <a href="/admin/categories">Categories</a>
+      <a href="/admin/polls">Polls</a>
+      <a href="/admin/exports">Export CSV</a>
+      <a href="/admin/notifications">Notifications</a>
+      <a href="/admin/announce">Announcements</a>
+    </nav>
+  `;
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${esc(title)}</title>
+  <style>${ADMIN_CSS}</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>${esc(title)}</h1>
+      ${nav}
+    </div>
+    ${innerHTML}
+  </div>
+</body>
+</html>`;
+}
 
 /* --------------------- zero-dep CSV export helpers ----------------------- */
 function isPlainObject(v) {
@@ -158,41 +206,32 @@ router.get('/', async (_req, res, next) => {
       Report.countDocuments({ status: 'open' }).catch(() => 0),
     ]);
 
-    const fallback = shell(
+    const fallback = page(
       'ShopSphere Community · Admin',
       `
-<div class="row" style="justify-content:space-between;align-items:flex-end">
-  <h1>ShopSphere Community · Admin</h1>
-  <div class="small">Quick overview</div>
-</div>
-
-<div class="row mt12">
-  <div class="card" style="flex:1">
-    <div class="small">Pending threads</div>
-    <div style="font-size:28px;font-weight:700">${pendingT}</div>
-  </div>
-  <div class="card" style="flex:1">
-    <div class="small">Pending comments</div>
-    <div style="font-size:28px;font-weight:700">${pendingC}</div>
-  </div>
-  <div class="card" style="flex:1">
-    <div class="small">Open reports</div>
-    <div style="font-size:28px;font-weight:700">${reports}</div>
-  </div>
-</div>
-
-<div class="card mt12">
-  <div class="row">
-    <a class="btn" href="/admin/threads">Threads</a>
-    <a class="btn" href="/admin/comments">Comments</a>
-    <a class="btn" href="/admin/reports">Reports</a>
-    <a class="btn" href="/admin/categories">Categories</a>
-    <a class="btn" href="/admin/polls">Polls</a>
-    <a class="btn" href="/admin/exports">Export CSV</a>
-    <a class="btn" href="/admin/notifications">Notifications</a>
-    <a class="btn" href="/admin/announce">Announcements</a>
-  </div>
-</div>
+      <div class="grid grid-2">
+        <div class="card">
+          <h2 style="margin-top:0">Overview</h2>
+          <ul class="list">
+            <li><div class="item-main"><strong>Pending threads</strong></div><span>${pendingT}</span></li>
+            <li><div class="item-main"><strong>Pending comments</strong></div><span>${pendingC}</span></li>
+            <li><div class="item-main"><strong>Open reports</strong></div><span>${reports}</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h2 style="margin-top:0">Quick links</h2>
+          <div class="actions">
+            <a class="btn" href="/admin/threads">Threads</a>
+            <a class="btn" href="/admin/comments">Comments</a>
+            <a class="btn" href="/admin/reports">Reports</a>
+            <a class="btn" href="/admin/categories">Categories</a>
+            <a class="btn" href="/admin/polls">Polls</a>
+            <a class="btn" href="/admin/exports">Export CSV</a>
+            <a class="btn" href="/admin/notifications">Notifications</a>
+            <a class="btn" href="/admin/announce">Announcements</a>
+          </div>
+        </div>
+      </div>
       `
     );
 
@@ -211,53 +250,56 @@ router.get('/threads', async (req, res, next) => {
 
     const list = (items || [])
       .map(
-        (t) => `<li class="item">
-  <div class="row" style="justify-content:space-between">
-    <div>
-      <b><a href="/admin/threads/${t._id}">${esc(t.title || '(untitled)')}</a></b>
-      ${t.pinned ? ' <span class="badge">pinned</span>' : ''}
-      ${t.closedAt ? ' <span class="badge">closed</span>' : ''}
-      ${t.locked ? ' <span class="badge">locked</span>' : ''}
-      · <span class="small">${esc(t.status || 'pending')}</span>
-      · <span class="small">${t._id}</span>
-    </div>
-    <div class="row">
-      <form action="/admin/threads/${t._id}/approve" method="post"><button class="btn primary" type="submit">Approve</button></form>
-      <form action="/admin/threads/${t._id}/reject" method="post"><button class="btn" type="submit">Reject</button></form>
-      <form action="/admin/threads/${t._id}/${t.pinned ? 'unpin' : 'pin'}" method="post"><button class="btn" type="submit">${t.pinned ? 'Unpin' : 'Pin'}</button></form>
-      <form action="/admin/threads/${t._id}/${t.closedAt ? 'reopen' : 'close'}" method="post"><button class="btn" type="submit">${t.closedAt ? 'Reopen' : 'Close'}</button></form>
-      <form action="/admin/threads/${t._id}/${t.locked ? 'unlock' : 'lock'}" method="post"><button class="btn" type="submit">${t.locked ? 'Unlock' : 'Lock'}</button></form>
-      <form action="/admin/threads/${t._id}/delete" method="post" onsubmit="return confirm('Delete thread?');"><button class="btn danger" type="submit">Delete</button></form>
-    </div>
+        (t) => `<li>
+  <div class="item-main">
+    <b><a href="/admin/threads/${t._id}">${esc(t.title || '(untitled)')}</a></b>
+    ${t.pinned ? ' <span class="badge">pinned</span>' : ''}
+    ${t.closedAt ? ' <span class="badge">closed</span>' : ''}
+    ${t.locked ? ' <span class="badge">locked</span>' : ''}
+    <span class="small"> · ${esc(t.status || 'pending')} · ${t._id}</span>
+  </div>
+  <div class="actions">
+    <form action="/admin/threads/${t._id}/approve" method="post">
+      <button class="btn primary" type="submit">Approve</button>
+    </form>
+    <form action="/admin/threads/${t._id}/reject" method="post">
+      <button class="btn warn" type="submit">Reject</button>
+    </form>
+    <form action="/admin/threads/${t._id}/${t.pinned ? 'unpin' : 'pin'}" method="post">
+      <button class="btn" type="submit">${t.pinned ? 'Unpin' : 'Pin'}</button>
+    </form>
+    <form action="/admin/threads/${t._id}/${t.closedAt ? 'reopen' : 'close'}" method="post">
+      <button class="btn" type="submit">${t.closedAt ? 'Reopen' : 'Close'}</button>
+    </form>
+    <form action="/admin/threads/${t._id}/${t.locked ? 'unlock' : 'lock'}" method="post">
+      <button class="btn" type="submit">${t.locked ? 'Unlock' : 'Lock'}</button>
+    </form>
+    <form action="/admin/threads/${t._id}/delete" method="post" onsubmit="return confirm('Delete thread?');">
+      <button class="btn danger" type="submit">Delete</button>
+    </form>
   </div>
 </li>`
       )
       .join('');
 
-    const fallback = shell(
+    const fallback = page(
       `Threads (${esc(status)})`,
       `
-<div class="row" style="justify-content:space-between;align-items:center">
-  <h2>Threads (${esc(status)})</h2>
-  <div class="row">
-    <a class="btn" href="/admin/threads?status=pending">Pending</a>
-    <a class="btn" href="/admin/threads?status=approved">Approved</a>
-    <a class="btn" href="/admin/threads?status=rejected">Rejected</a>
-  </div>
-</div>
-
-${status === 'pending' ? `
-<div class="card mt12">
-  <form action="/admin/threads/approve-all" method="post">
-    <button class="btn primary" type="submit">Approve ALL pending</button>
-  </form>
-</div>` : ''}
-
-<div class="card mt12">
-  <ul class="clean">${list || '<li class="item">(none)</li>'}</ul>
-</div>
-
-<p class="mt12"><a href="/admin">← Back</a></p>
+      <div class="card">
+        <p class="small" style="margin:0 0 12px 0">
+          <a href="/admin/threads?status=pending">Pending</a> ·
+          <a href="/admin/threads?status=approved">Approved</a> ·
+          <a href="/admin/threads?status=rejected">Rejected</a>
+        </p>
+        ${status === 'pending'
+        ? `
+        <form action="/admin/threads/approve-all" method="post" style="margin-bottom:12px">
+          <button class="btn primary" type="submit">Approve ALL pending</button>
+        </form>` : ''
+      }
+        <ul class="list">${list || '<li>(none)</li>'}</ul>
+        <p style="margin-top:12px"><a class="btn ghost" href="/admin">Back</a></p>
+      </div>
       `
     );
 
@@ -277,24 +319,32 @@ router.get('/threads/:id', async (req, res, next) => {
 
     const clist = (comments || [])
       .map(
-        (c) => `<li class="item">
-  <div><b>${esc(c.author?.displayName || c.author?.name || 'anon')}</b>
-  <span class="small"> · ${esc(c.status || 'pending')} · ${c._id}</span></div>
-  <div class="mt8">${esc((c.body || '').slice(0, 240))}</div>
-  <div class="row mt8">
+        (c) => `<li>
+  <div class="item-main">
+    <b>${esc(c.author?.displayName || c.author?.name || 'anon')}</b>:
+    ${esc((c.body || '').slice(0, 240))}
+    <span class="small"> · ${esc(c.status || 'pending')} · ${c._id}</span>
+  </div>
+  <div class="actions">
     ${c.status !== 'approved'
-            ? `<form action="/admin/comments/${c._id}/approve" method="post"><button class="btn primary" type="submit">Approve</button></form>`
-            : ''}
+            ? `<form action="/admin/comments/${c._id}/approve" method="post">
+             <button class="btn primary" type="submit">Approve</button>
+           </form>`
+            : ''
+          }
     ${c.status !== 'rejected'
-            ? `<form action="/admin/comments/${c._id}/reject" method="post"><button class="btn" type="submit">Reject</button></form>`
-            : ''}
+            ? `<form action="/admin/comments/${c._id}/reject" method="post">
+             <button class="btn warn" type="submit">Reject</button>
+           </form>`
+            : ''
+          }
     <form action="/admin/comments/${c._id}/edit" method="post">
       <input type="hidden" name="body" value="${esc((c.body || '').slice(0, 5000))}">
       <button class="btn" type="submit">Quick Save</button>
     </form>
-    <form class="row" action="/admin/comments/${c._id}/reject-with-reason" method="post">
-      <input class="input" name="reason" placeholder="reason" />
-      <button class="btn" type="submit">Reject+Reason</button>
+    <form action="/admin/comments/${c._id}/reject-with-reason" method="post">
+      <input name="reason" placeholder="reason" />
+      <button class="btn warn" type="submit">Reject+Reason</button>
     </form>
     <form action="/admin/comments/${c._id}/delete" method="post" onsubmit="return confirm('Delete comment?');">
       <button class="btn danger" type="submit">Delete</button>
@@ -304,51 +354,75 @@ router.get('/threads/:id', async (req, res, next) => {
       )
       .join('');
 
-    const fallback = shell(
-      esc(t.title || '(untitled)'),
+    const fallback = page(
+      t.title || '(untitled)',
       `
-<div class="card">
-  <h2 style="margin-bottom:6px">${esc(t.title || '(untitled)')}</h2>
-  <div class="small">Status: ${esc(t.status || 'pending')} ${t.pinned ? '· pinned' : ''} ${t.closedAt ? '· closed' : ''} ${t.locked ? '· locked' : ''}</div>
-  <pre style="background:#fafafa;border:1px solid #eee;border-radius:10px;padding:12px;white-space:pre-wrap">${esc(t.body || '')}</pre>
+      <div class="card">
+        <p class="small" style="margin:0 0 8px 0">
+          <i>Status:</i> ${esc(t.status || 'pending')}
+          ${t.pinned ? ' · <span class="badge">pinned</span>' : ''}
+          ${t.closedAt ? ' · <span class="badge">closed</span>' : ''}
+          ${t.locked ? ' · <span class="badge">locked</span>' : ''}
+        </p>
+        <pre>${esc(t.body || '')}</pre>
 
-  <div class="row mt12">
-    <form action="/admin/threads/${t._id}/approve" method="post"><button class="btn primary" type="submit">Approve</button></form>
-    <form action="/admin/threads/${t._id}/reject" method="post"><button class="btn" type="submit">Reject</button></form>
-    <form class="row" action="/admin/threads/${t._id}/reject-with-reason" method="post">
-      <input class="input" name="reason" placeholder="reason" />
-      <button class="btn" type="submit">Reject + Reason</button>
-    </form>
-    <form action="/admin/threads/${t._id}/${t.pinned ? 'unpin' : 'pin'}" method="post"><button class="btn" type="submit">${t.pinned ? 'Unpin' : 'Pin'}</button></form>
-    <form action="/admin/threads/${t._id}/${t.closedAt ? 'reopen' : 'close'}" method="post"><button class="btn" type="submit">${t.closedAt ? 'Reopen' : 'Close'}</button></form>
-    <form action="/admin/threads/${t._id}/${t.locked ? 'unlock' : 'lock'}" method="post"><button class="btn" type="submit">${t.locked ? 'Unlock' : 'Lock'}</button></form>
-    <form action="/admin/threads/${t._id}/delete" method="post" onsubmit="return confirm('Delete thread?');"><button class="btn danger" type="submit">Delete</button></form>
-  </div>
+        <div class="actions" style="margin-top:10px">
+          <form action="/admin/threads/${t._id}/approve" method="post">
+            <button class="btn primary" type="submit">Approve</button>
+          </form>
+          <form action="/admin/threads/${t._id}/reject" method="post">
+            <button class="btn warn" type="submit">Reject</button>
+          </form>
+          <form action="/admin/threads/${t._id}/reject-with-reason" method="post">
+            <input name="reason" placeholder="reason" />
+            <button class="btn warn" type="submit">Reject + Reason</button>
+          </form>
+          <form action="/admin/threads/${t._id}/${t.pinned ? 'unpin' : 'pin'}" method="post">
+            <button class="btn" type="submit">${t.pinned ? 'Unpin' : 'Pin'}</button>
+          </form>
+          <form action="/admin/threads/${t._id}/${t.closedAt ? 'reopen' : 'close'}" method="post">
+            <button class="btn" type="submit">${t.closedAt ? 'Reopen' : 'Close'}</button>
+          </form>
+          <form action="/admin/threads/${t._id}/${t.locked ? 'unlock' : 'lock'}" method="post">
+            <button class="btn" type="submit">${t.locked ? 'Unlock' : 'Lock'}</button>
+          </form>
+          <form action="/admin/threads/${t._id}/delete" method="post" onsubmit="return confirm('Delete thread?');">
+            <button class="btn danger" type="submit">Delete</button>
+          </form>
+        </div>
+      </div>
 
-  <hr/>
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">Edit thread</h3>
+        <form action="/admin/threads/${t._id}/edit" method="post">
+          <div class="form-row">
+            <label style="flex:1">Title
+              <input name="title" placeholder="title" value="${esc(t.title || '')}" />
+            </label>
+          </div>
+          <label>Body
+            <textarea name="body" rows="4" style="margin-top:6px">${esc(t.body || '')}</textarea>
+          </label>
+          <button class="btn primary" type="submit">Save</button>
+        </form>
+      </div>
 
-  <h4>Edit thread</h4>
-  <form class="kv" action="/admin/threads/${t._id}/edit" method="post">
-    <label>Title</label><input class="input" name="title" placeholder="title" value="${esc(t.title || '')}" />
-    <label>Body</label><textarea name="body" rows="4">${esc(t.body || '')}</textarea>
-    <div></div><button class="btn primary" type="submit">Save</button>
-  </form>
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">Move to category</h3>
+        <form action="/admin/threads/${t._id}/move" method="post" class="form-row">
+          <input name="categoryId" placeholder="categoryId" />
+          <button class="btn" type="submit">Move</button>
+        </form>
+      </div>
 
-  <hr/>
-
-  <h4>Move to category</h4>
-  <form class="row" action="/admin/threads/${t._id}/move" method="post">
-    <input class="input" name="categoryId" placeholder="categoryId" />
-    <button class="btn" type="submit">Move</button>
-  </form>
-</div>
-
-<div class="card mt12">
-  <h3>Comments</h3>
-  <ul class="clean">${clist || '<li class="item">(none)</li>'}</ul>
-</div>
-
-<p class="mt12"><a href="/admin/threads?status=pending">← Back to pending</a> · <a href="/admin">Admin home</a></p>
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">Comments</h3>
+        <ul class="list">${clist || '<li>(none)</li>'}</ul>
+        <p style="margin-top:12px">
+          <a class="btn ghost" href="/admin/threads?status=pending">Back to pending</a>
+          <a class="btn ghost" href="/admin">Admin home</a>
+        </p>
+      </div>
       `
     );
 
@@ -445,7 +519,6 @@ router.post('/threads/:id/reopen', async (req, res, next) => {
     goBack(req, res, '/admin/threads?status=pending');   // ✅ consistent redirect
   } catch (e) { next(e); }
 });
-
 
 /* -------------------- 4.1 Thread moderator controls --------------------- */
 router.post('/threads/:id/move', async (req, res, next) => {
@@ -555,42 +628,43 @@ router.get('/comments', async (req, res, next) => {
 
     const list = (items || [])
       .map(
-        (c) => `<li class="item">
-  <div>
-    <b>${esc(c.author?.displayName || c.author?.name || 'anon')}</b>
+        (c) => `<li>
+  <div class="item-main">
+    <b>${esc(c.author?.displayName || c.author?.name || 'anon')}</b>:
+    ${esc((c.body || '').slice(0, 120))}
     <span class="small"> · ${esc(c.status || 'pending')} · ${c._id}</span>
   </div>
-  <div class="mt8">${esc((c.body || '').slice(0, 120))}</div>
-  <div class="row mt8">
-    <form action="/admin/comments/${c._id}/approve" method="post"><button class="btn primary" type="submit">Approve</button></form>
-    <form action="/admin/comments/${c._id}/reject" method="post"><button class="btn" type="submit">Reject</button></form>
-    <form class="row" action="/admin/comments/${c._id}/reject-with-reason" method="post">
-      <input class="input" name="reason" placeholder="reason" />
-      <button class="btn" type="submit">Reject+Reason</button>
+  <div class="actions">
+    <form action="/admin/comments/${c._id}/approve" method="post">
+      <button class="btn primary" type="submit">Approve</button>
     </form>
-    <form action="/admin/comments/${c._id}/delete" method="post" onsubmit="return confirm('Delete comment?');"><button class="btn danger" type="submit">Delete</button></form>
+    <form action="/admin/comments/${c._id}/reject" method="post">
+      <button class="btn warn" type="submit">Reject</button>
+    </form>
+    <form action="/admin/comments/${c._id}/reject-with-reason" method="post">
+      <input name="reason" placeholder="reason" />
+      <button class="btn warn" type="submit">Reject+Reason</button>
+    </form>
+    <form action="/admin/comments/${c._id}/delete" method="post" onsubmit="return confirm('Delete comment?');">
+      <button class="btn danger" type="submit">Delete</button>
+    </form>
   </div>
 </li>`
       )
       .join('');
 
-    const fallback = shell(
+    const fallback = page(
       `Comments (${esc(status)})`,
       `
-<div class="row" style="justify-content:space-between;align-items:center">
-  <h2>Comments (${esc(status)})</h2>
-  <div class="row">
-    <a class="btn" href="/admin/comments?status=pending">Pending</a>
-    <a class="btn" href="/admin/comments?status=approved">Approved</a>
-    <a class="btn" href="/admin/comments?status=rejected">Rejected</a>
-  </div>
-</div>
-
-<div class="card mt12">
-  <ul class="clean">${list || '<li class="item">(none)</li>'}</ul>
-</div>
-
-<p class="mt12"><a href="/admin">← Back</a></p>
+      <div class="card">
+        <p class="small" style="margin:0 0 12px 0">
+          <a href="/admin/comments?status=pending">Pending</a> ·
+          <a href="/admin/comments?status=approved">Approved</a> ·
+          <a href="/admin/comments?status=rejected">Rejected</a>
+        </p>
+        <ul class="list">${list || '<li>(none)</li>'}</ul>
+        <p style="margin-top:12px"><a class="btn ghost" href="/admin">Back</a></p>
+      </div>
       `
     );
 
@@ -739,35 +813,37 @@ router.get('/categories', async (_req, res, next) => {
 
     const list = (items || [])
       .map(
-        (c) => `<li class="item">
-  ${esc(c.name)} <span class="small">(${esc(c.slug)}) · order ${Number(c.order || 0)} · ${c._id}</span>
-  <div class="row mt8">
-    <form action="/admin/categories/${c._id}/delete" method="post"><button class="btn danger" type="submit">Delete</button></form>
+        (c) => `<li>
+  <div class="item-main">
+    ${esc(c.name)} <small>(${esc(c.slug)})</small> · order ${Number(c.order || 0)}
+    <span class="small"> · ${c._id}</span>
+  </div>
+  <div class="actions">
+    <form action="/admin/categories/${c._id}/delete" method="post">
+      <button class="btn danger" type="submit">Delete</button>
+    </form>
   </div>
 </li>`
       )
       .join('');
 
-    const fallback = shell(
+    const fallback = page(
       'Categories',
       `
-<div class="card">
-  <h2>Categories</h2>
-  <p>Use shop domain : 4amjw1-pc.myshopify.com</p>
-  <form class="row mt12" action="/admin/categories/create" method="post">
-    <input class="input" name="shop" placeholder="shop domain" required />
-    <input class="input" name="name" placeholder="name" required />
-    <input class="input" name="slug" placeholder="slug" required />
-    <input class="input" name="order" type="number" placeholder="order" value="0" />
-    <button class="btn primary" type="submit">Create</button>
-  </form>
-</div>
-
-<div class="card mt12">
-  <ul class="clean">${list || '<li class="item">(none)</li>'}</ul>
-</div>
-
-<p class="mt12"><a href="/admin">← Back</a></p>
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">Create category</h3>
+        <form action="/admin/categories/create" method="post" style="margin-bottom:12px">
+          <div class="form-row">
+            <input name="shop" placeholder="shop domain" required />
+            <input name="name" placeholder="name" required />
+            <input name="slug" placeholder="slug" required />
+            <input name="order" type="number" placeholder="order" value="0" />
+          </div>
+          <button class="btn primary" type="submit">Create</button>
+        </form>
+        <ul class="list">${list || '<li>(none)</li>'}</ul>
+        <p style="margin-top:12px"><a class="btn ghost" href="/admin">Back</a></p>
+      </div>
       `
     );
 
@@ -806,25 +882,27 @@ router.get('/reports', async (_req, res, next) => {
 
     const list = (items || [])
       .map(
-        (r) => `<li class="item">
-  <b>${esc(r.type || 'report')}</b> on ${esc(r.targetType || 'item')}
-  <span class="small">${r.targetId}</span> · ${esc(r.reason || '')}
-  <div class="row mt8">
-    <form action="/admin/reports/${r._id}/resolve" method="post"><button class="btn primary" type="submit">Resolve</button></form>
+        (r) => `<li>
+  <div class="item-main">
+    <b>${esc(r.type || 'report')}</b> on ${esc(r.targetType || 'item')}
+    <small class="small">${r.targetId}</small> · ${esc(r.reason || '')}
+  </div>
+  <div class="actions">
+    <form action="/admin/reports/${r._id}/resolve" method="post">
+      <button class="btn primary" type="submit">Resolve</button>
+    </form>
   </div>
 </li>`
       )
       .join('');
 
-    const fallback = shell(
+    const fallback = page(
       'Reports (open)',
       `
-<div class="card">
-  <h2>Reports (open)</h2>
-  <ul class="clean">${list || '<li class="item">(none)</li>'}</ul>
-</div>
-
-<p class="mt12"><a href="/admin">← Back</a></p>
+      <div class="card">
+        <ul class="list">${list || '<li>(none)</li>'}</ul>
+        <p style="margin-top:12px"><a class="btn ghost" href="/admin">Back</a></p>
+      </div>
       `
     );
 
@@ -852,34 +930,38 @@ router.get('/polls', async (_req, res, next) => {
 
     const list = (items || [])
       .map(
-        (p) => `<li class="item">
-  <b>${esc(p.question || '(no question)')}</b> · ${(p.options || []).length} options
-  <div class="row mt8">
-    <form action="/admin/polls/${p._id}/close" method="post"><button class="btn" type="submit">Close</button></form>
+        (p) => `<li>
+  <div class="item-main"><b>${esc(p.question || '(no question)')}</b> · ${(p.options || []).length} options</div>
+  <div class="actions">
+    <form action="/admin/polls/${p._id}/close" method="post">
+      <button class="btn warn" type="submit">Close</button>
+    </form>
   </div>
 </li>`
       )
       .join('');
 
-    const fallback = shell(
+    const fallback = page(
       'Polls',
       `
-<div class="card">
-  <h2>Polls</h2>
-  <form class="row mt12" action="/admin/polls/create" method="post">
-    <input class="input" name="shop" placeholder="shop domain" required />
-    <input class="input" name="threadId" placeholder="threadId" />
-    <input class="input" style="flex:1" name="question" placeholder="question" required />
-    <textarea class="mt8" name="options" placeholder="One option per line" rows="5"></textarea>
-    <button class="btn primary" type="submit">Create Poll</button>
-  </form>
-</div>
-
-<div class="card mt12">
-  <ul class="clean">${list || '<li class="item">(none)</li>'}</ul>
-</div>
-
-<p class="mt12"><a href="/admin">← Back</a></p>
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">Create poll</h3>
+        <form action="/admin/polls/create" method="post" style="margin-bottom:12px">
+          <div class="form-row">
+            <input name="shop" placeholder="shop domain" required />
+            <input name="threadId" placeholder="threadId" />
+          </div>
+          <label>Question
+            <input name="question" placeholder="question" required />
+          </label>
+          <label>Options
+            <textarea name="options" placeholder="One option per line" rows="5" style="margin-top:6px"></textarea>
+          </label>
+          <button class="btn primary" type="submit">Create Poll</button>
+        </form>
+        <ul class="list">${list || '<li>(none)</li>'}</ul>
+        <p style="margin-top:12px"><a class="btn ghost" href="/admin">Back</a></p>
+      </div>
       `
     );
 
@@ -899,10 +981,7 @@ router.post('/polls/create', async (req, res, next) => {
       .split(/\r?\n/)
       .map((s) => s.trim())
       .filter(Boolean)
-      .map((t, i) => ({
-        id: String(i + 1),
-        text: sanitizeHtml(t, { allowedTags: [], allowedAttributes: {} }),
-      }));
+      .map((t, i) => ({ id: String(i + 1), text: sanitizeHtml(t, { allowedTags: [], allowedAttributes: {} }) }));
 
     await Poll.create({
       shop: (shop || '').trim(),
@@ -940,6 +1019,7 @@ router.post('/polls/:id/close', async (req, res, next) => {
       }
     }
 
+    // back to polls list
     goBack(req, res, '/admin/polls');
   } catch (e) {
     next(e);
@@ -949,37 +1029,50 @@ router.post('/polls/:id/close', async (req, res, next) => {
 // GET /admin/announce - simple form
 router.get('/announce', (req, res) => {
   const shop = req.query.shop || '';
-  res.send(shell('Announcement', `
-<div class="card">
-  <h1>Send Announcement</h1>
-  <form method="post" action="/admin/announce" style="display:grid;gap:12px;max-width:520px">
-    <label>Shop<br><input class="input" name="shop" value="${shop}" required style="width:100%"></label>
-    <label>Message<br><textarea class="input" name="message" rows="4" required style="width:100%"></textarea></label>
+  const html = page(
+    'Send Announcement',
+    `
+    <div class="card">
+      <form method="post" action="/admin/announce" style="display:grid;gap:12px;max-width:620px">
+        <label>Shop
+          <input name="shop" value="${esc(shop)}" required>
+        </label>
+        <label>Message
+          <textarea name="message" rows="4" required></textarea>
+        </label>
 
-    <fieldset style="padding:8px 12px;border:1px solid var(--border);border-radius:10px">
-      <legend>Audience</legend>
-      <label><input type="radio" name="audience" value="all" checked> All users who’ve posted</label><br>
-      <label><input type="radio" name="audience" value="one"> Single user (customerId)</label>
-      <div id="uid" style="margin-top:8px;display:none">
-        <input class="input" name="userId" placeholder="customerId (e.g., 8322784788675)" style="width:100%">
-      </div>
-    </fieldset>
+        <fieldset style="padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:#fff">
+          <legend>Audience</legend>
+          <label style="display:block;margin:6px 0">
+            <input type="radio" name="audience" value="all" checked> All users who’ve posted
+          </label>
+          <label style="display:block;margin:6px 0">
+            <input type="radio" name="audience" value="one"> Single user (customerId)
+          </label>
+          <div id="uid" style="margin-top:8px;display:none">
+            <input name="userId" placeholder="customerId (e.g., 8322784788675)" style="width:100%">
+          </div>
+        </fieldset>
 
-    <button class="btn primary" type="submit">Send</button>
-  </form>
-  <p class="mt12"><a href="/admin">← Back</a></p>
-</div>
+        <div class="actions">
+          <button class="btn primary" type="submit">Send</button>
+          <a class="btn ghost" href="/admin">Back</a>
+        </div>
+      </form>
+    </div>
 
-<script>
-  const radios = document.querySelectorAll('input[name="audience"]');
-  const uid = document.getElementById('uid');
-  function toggle() {
-    uid.style.display = document.querySelector('input[name="audience"]:checked').value === 'one' ? 'block' : 'none';
-  }
-  radios.forEach(r => r.addEventListener('change', toggle));
-  toggle();
-</script>
-  `));
+    <script>
+      const radios = document.querySelectorAll('input[name="audience"]');
+      const uid = document.getElementById('uid');
+      function toggle() {
+        uid.style.display = document.querySelector('input[name="audience"]:checked').value === 'one' ? 'block' : 'none';
+      }
+      radios.forEach(r => r.addEventListener('change', toggle));
+      toggle();
+    </script>
+    `
+  );
+  res.send(html);
 });
 
 // POST /admin/announce - create announcement notifications
@@ -1012,76 +1105,88 @@ router.post('/announce', async (req, res, next) => {
 
     if (docs.length) await Notification.insertMany(docs, { ordered: false });
 
-    res.redirect('/admin/notifications');
+    res.redirect('/admin/notifications'); // or '/admin' if you prefer
   } catch (e) {
     next(e);
   }
 });
 
 // --- Simple CSV export UI ---
+// GET /admin/exports
 router.get('/exports', (req, res) => {
   const shop = (req.query.shop || '').trim();
-  res.type('html').send(shell('CSV Exports', `
-<div class="card">
-  <h1>CSV Exports</h1>
+  const html = page(
+    'CSV Exports',
+    `
+    <div class="card">
+      <form id="xform" style="display:grid;gap:10px;max-width:620px">
+        <label>Shop (optional)
+          <input name="shop" value="${esc(shop)}" placeholder="your-shop.myshopify.com">
+        </label>
+        <div class="form-row">
+          <label>From (YYYY-MM-DD)
+            <input name="from" type="date">
+          </label>
+          <label>To (YYYY-MM-DD)
+            <input name="to" type="date">
+          </label>
+        </div>
 
-  <form id="xform" style="display:grid;gap:10px;max-width:520px">
-    <label>Shop (optional)
-      <input class="input" name="shop" value="${shop}" placeholder="your-shop.myshopify.com">
-    </label>
-    <div class="row">
-      <label style="flex:1">From (YYYY-MM-DD)
-        <input class="input" name="from" type="date" style="width:100%">
-      </label>
-      <label style="flex:1">To (YYYY-MM-DD)
-        <input class="input" name="to" type="date" style="width:100%">
-      </label>
+        <div class="actions" style="margin-top:6px;flex-wrap:wrap">
+          <button class="btn" type="button" onclick="go('threads')">Export Threads CSV</button>
+          <button class="btn" type="button" onclick="go('comments')">Export Comments CSV</button>
+          <button class="btn" type="button" onclick="go('votes')">Export Votes CSV</button>
+          <button class="btn" type="button" onclick="go('polls')">Export Polls CSV</button>
+          <a class="btn ghost" href="/admin">Back</a>
+        </div>
+      </form>
     </div>
 
-    <div class="row" style="flex-wrap:wrap;margin-top:6px">
-      <button class="btn" type="button" onclick="go('threads')">Export Threads CSV</button>
-      <button class="btn" type="button" onclick="go('comments')">Export Comments CSV</button>
-      <button class="btn" type="button" onclick="go('votes')">Export Votes CSV</button>
-      <button class="btn" type="button" onclick="go('polls')">Export Polls CSV</button>
-    </div>
-  </form>
+    <script>
+      function go(type) {
+        var f = document.getElementById('xform');
+        var shop = (f.shop.value || '').trim();
+        var from = (f.from.value || '').trim();
+        var to   = (f.to.value || '').trim();
 
-  <p class="mt12"><a href="/admin">← Back</a></p>
-</div>
+        var url = '/admin/export?type=' + encodeURIComponent(type);
+        if (shop) url += '&shop=' + encodeURIComponent(shop);
+        if (from) url += '&from=' + encodeURIComponent(from);
+        if (to)   url += '&to='   + encodeURIComponent(to);
 
-<script>
-  function go(type) {
-    var f = document.getElementById('xform');
-    var shop = (f.shop.value || '').trim();
-    var from = (f.from.value || '').trim();
-    var to   = (f.to.value || '').trim();
-
-    var url = '/admin/export?type=' + encodeURIComponent(type);
-    if (shop) url += '&shop=' + encodeURIComponent(shop);
-    if (from) url += '&from=' + encodeURIComponent(from);
-    if (to)   url += '&to='   + encodeURIComponent(to);
-
-    window.open(url, '_blank');
-  }
-</script>
-`));
+        window.open(url, '_blank');
+      }
+    </script>
+    `
+  );
+  res.type('html').send(html);
 });
 
-
 /* -------------------------- 4.3 CSV Exports ----------------------------- */
+// GET /admin/export?type=threads|comments|votes|polls&shop=...&from=YYYY-MM-DD&to=YYYY-MM-DD
+// --- helper: normalize values for CSV (ObjectId/Buffer/Date) ---
 function normalizeForCsv(v) {
   if (v === null || v === undefined) return v;
+
+  // Mongo ObjectId (works without importing mongoose)
   if (typeof v?.toHexString === 'function') return v.toHexString();
   if (v?._bsontype === 'ObjectID' && typeof v?.toString === 'function') return v.toString();
+
+  // Buffers or { type:'Buffer', data:[...] }
   if (Buffer.isBuffer(v)) return v.toString('hex');
   if (v?.type === 'Buffer' && Array.isArray(v.data)) return Buffer.from(v.data).toString('hex');
+
+  // Dates
   if (v instanceof Date) return v.toISOString();
+
+  // Arrays / plain objects → recurse
   if (Array.isArray(v)) return v.map(normalizeForCsv);
   if (typeof v === 'object') {
     const out = {};
     for (const k of Object.keys(v)) out[k] = normalizeForCsv(v[k]);
     return out;
   }
+
   return v;
 }
 
@@ -1113,11 +1218,13 @@ router.get('/export', async (req, res, next) => {
         return res.status(400).send('Invalid type');
     }
 
+    // ✅ Make ObjectIds readable & remove Buffer columns
     docs = docs.map(d => normalizeForCsv(d));
 
     const csv = toCSV(docs);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${type}.csv"`);
+    // (optional) prepend BOM so Excel opens UTF-8 cleanly:
     res.send('\uFEFF' + csv);
   } catch (e) {
     next(e);
@@ -1131,22 +1238,18 @@ router.get('/notifications', async (_req, res, next) => {
     const list = (items || [])
       .map(
         (n) =>
-          `<li class="item">
-            <b>${esc(n.type)}</b> → ${esc(n.userId)} on ${esc(n.targetType)} ${esc(n.targetId)}
-            ${n.payload ? `<div class="small">${esc(JSON.stringify(n.payload))}</div>` : ''}
-            <div class="small">${n._id}</div>
-           </li>`
+          `<li>
+            <div class="item-main">
+              ${esc(n.type)} → ${esc(n.userId)} on ${esc(n.targetType)} ${esc(n.targetId)}
+              ${n.payload ? `<span class="small">${esc(JSON.stringify(n.payload))}</span>` : ''}
+              <small class="small">${n._id}</small>
+            </div>
+          </li>`
       )
       .join('');
-    const fallback = shell(
+    const fallback = page(
       'Notifications',
-      `
-<div class="card">
-  <h2>Notifications</h2>
-  <ul class="clean">${list || '<li class="item">(none)</li>'}</ul>
-</div>
-<p class="mt12"><a href="/admin">← Back</a></p>
-      `
+      `<div class="card"><ul class="list">${list || '<li>(none)</li>'}</ul><p style="margin-top:12px"><a class="btn ghost" href="/admin">Back</a></p></div>`
     );
     renderOrFallback(res, 'notifications', { items }, fallback);
   } catch (e) {

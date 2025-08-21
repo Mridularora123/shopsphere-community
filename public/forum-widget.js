@@ -7,15 +7,15 @@
   function qsa(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
   function escapeHtml(s) { return (s || '').replace(/[&<>"']/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]; }); }
   function loadCss(href) {
-    if (document.querySelector('link[href="' + href + '"]')) return;
-    var l = document.createElement('link');
+    if (document.querySelector(`link[href="${href}"]`)) return;
+    const l = document.createElement('link');
     l.rel = 'stylesheet'; l.href = href;
     document.head.appendChild(l);
   }
   function loadScript(src) {
-    return new Promise(function (resolve, reject) {
-      if (document.querySelector('script[src="' + src + '"]')) return resolve();
-      var s = document.createElement('script');
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) return resolve();
+      const s = document.createElement('script');
       s.src = src; s.onload = resolve; s.onerror = reject;
       document.head.appendChild(s);
     });
@@ -30,68 +30,64 @@
   function isDesignMode() { try { return !!(window.Shopify && Shopify.designMode); } catch (_) { return false; } }
   var debounce = function (fn, ms) { var t; return function () { var a = arguments; clearTimeout(t); t = setTimeout(function () { fn.apply(null, a); }, ms || 200); }; };
 
-  /* ---------- modern styles (no functionality change) ---------- */
+  /* ---------- modern, scoped styles (no functionality changes) ---------- */
   function injectStyles() {
     if (document.getElementById('community-style')) return;
     var css = [
-      ':root{--c-bg:#fff;--c-soft:#f6f7f9;--c-soft2:#f0f2f5;--c-border:#e5e7eb;--c-text:#111827;--c-mut:#6b7280;--c-accent:#ff7a59;--c-accent-2:#0a66c2;--radius:12px;--shadow:0 1px 2px rgba(0,0,0,.06),0 6px 16px rgba(0,0,0,.06)}',
-      /* --- Auth gate (login required) --- */
-      '.auth-gate{display:flex;flex-direction:column;align-items:flex-start;gap:10px}',
-      '.auth-title{font-size:18px;font-weight:700;color:var(--c-text)}',
-      '.auth-desc{color:var(--c-mut);margin:0}',
-      '.auth-features{margin:0 0 4px 18px;color:var(--c-text)}',
-      '.auth-features li{margin:2px 0}',
-      '.auth-actions{display:flex;gap:8px;flex-wrap:wrap}',
-      '.auth-actions .community-btn{text-decoration:none}',
-      '.community-box{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:1100px;margin:0 auto;padding:8px}',
-      '.community-layout{display:grid;grid-template-columns:260px 1fr;gap:18px}',
-      '.community-sidebar{position:sticky;top:12px;height:fit-content}',
-      '.side-card{background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--radius);box-shadow:var(--shadow)}',
-      '.side-header{padding:12px 14px;border-bottom:1px solid var(--c-border);font-weight:700;color:var(--c-text)}',
-      '.topic-list{list-style:none;margin:0;padding:8px}',
-      '.topic-item{width:100%;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid transparent;background:transparent;cursor:pointer;color:var(--c-text)}',
-      '.topic-item:hover{background:var(--c-soft)}',
-      '.topic-item.active{background:#fff;border-color:var(--c-accent);box-shadow:0 0 0 3px rgba(255,122,89,.15)}',
-      '.topic-hash{color:var(--c-mut);}',
-      'br{display:none}',
-      '.community-main .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}',
-      '.community-input,.community-textarea{flex:1 1 auto;padding:10px 12px;border:1px solid var(--c-border);border-radius:10px;background:#fff;min-width:0}',
-      '.community-textarea{width:100%}',
-      '.community-btn{color:#121212!important;padding:9px 12px;border:1px solid var(--c-border);border-radius:999px;background:#fff;cursor:pointer;line-height:1}',
-      '.community-btn:hover{box-shadow:0 0 0 3px rgba(0,0,0,.04)}',
-      '.primary{background:var(--c-accent);color:#fff;border-color:var(--c-accent)}',
-      '.primary:hover{box-shadow:0 0 0 4px rgba(255,122,89,.25)}',
-      '.community-card{background:#fff;border:1px solid var(--c-border);border-radius:var(--radius);padding:14px;margin:12px 0;box-shadow:var(--shadow)}',
-      '.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}',
-      '.thread-title{font-weight:700;font-size:18px}',
-      '.community-tag{display:inline-block;background:var(--c-soft);border:1px solid var(--c-border);border-radius:999px;padding:2px 8px;margin-right:6px;font-size:12px}',
-      '.community-meta{color:var(--c-mut);font-size:12px}',
-      '.badge{display:inline-block;background:#eef;border:1px solid #dde;padding:2px 6px;border-radius:6px;font-size:11px;margin-left:6px}',
-      '.vote{border:1px solid var(--c-border);background:#fff;border-radius:999px;padding:7px 10px;line-height:1;cursor:pointer;min-width:52px;display:inline-flex;align-items:center;justify-content:center;box-shadow:inset 0 -2px 0 rgba(0,0,0,.04)}',
-      '.vote:hover{box-shadow:0 0 0 3px rgba(10,102,194,.12)}',
-      '.vote.voted{font-weight:700;border-color:var(--c-accent);box-shadow:0 0 0 3px rgba(255,122,89,.18)}',
-      '.thread-body,.comment-body{color:var(--c-text);font-size:15px;line-height:1.58;margin-top:6px}',
-      '.thread-body img,.comment-body img{max-width:100%;height:auto;border-radius:8px;display:block;margin:10px 0}',
-      '.thread-body a,.comment-body a{color:var(--c-accent-2);text-decoration:underline}',
-      /* reduce big default margins just inside our bodies */
-      '.thread-body h1,.comment-body h1{font-size:22px;margin:8px 0 6px 0}',
-      '.thread-body h2,.comment-body h2{font-size:18px;margin:6px 0 4px 0}',
-      '.thread-body ul,.comment-body ul{margin:6px 0 6px 18px}',
-      '.reply-form .community-textarea{min-height:60px}',
+      /* layout + type */
+      '.community-box{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:920px;margin:0 auto;padding:8px 16px}',
+      '.community-row{display:flex;gap:12px;align-items:center}',
+      '.community-meta{color:#64748b;font-size:12px}',
+      'hr{border:0;height:1px;background:#f1f5f9;margin:14px 0}',
+
+      /* inputs / textareas */
+      '.community-input,.community-textarea{flex:1 1 auto;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;min-width:0;outline:none;transition:border-color .15s ease,box-shadow .15s ease}',
+      '.community-input:focus,.community-textarea:focus{border-color:#0a66c2;box-shadow:0 0 0 3px rgba(10,102,194,.12)}',
+      '.community-textarea{width:100%;resize:vertical}',
+
+      /* buttons */
+      '.community-btn{padding:8px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-weight:600;line-height:1.1;transition:background .15s ease,color .15s ease,border-color .15s ease,box-shadow .15s ease}',
+      '.community-btn:hover{background:#0a66c2;color:#fff;border-color:#0a66c2}',
+      '.community-btn:active{transform:translateY(1px)}',
+
+      /* cards + chips */
+      '.community-card{border:1px solid #e5e7eb;border-radius:14px;padding:16px;margin:12px 0;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.05)}',
+      '.community-tag{display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:2px 10px;margin-right:6px;font-size:12px;color:#334155}',
+      '.badge{display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;padding:2px 8px;border-radius:999px;font-size:11px;color:#334155;margin-left:6px}',
+
+      /* vote chip */
+      '.vote{cursor:pointer;background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:6px 10px;line-height:1;font-weight:700;color:#334155}',
+      '.vote.voted{background:#0a66c2;border-color:#0a66c2;color:#fff}',
+
+      /* reply form */
+      '.reply-form .community-textarea{min-height:64px}',
       '.comment-actions{display:inline-flex;gap:8px;margin-left:8px}',
-      '.s-item:hover{background:#f6f6f6}',
-      /* comments accordion */
-      '.comments-accordion{margin-top:8px;border-top:1px dashed var(--c-border);padding-top:8px}',
-      '.comments-accordion>summary{cursor:pointer;user-select:none;list-style:none}',
-      '.comments-accordion>summary::-webkit-details-marker{display:none}',
-      '.comments-accordion>summary .summary-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--c-border);border-radius:999px;background:#fff}',
-      '.replies details{margin:6px 0 0 32px}',
-      '.replies summary{cursor:pointer;color:var(--c-accent-2)}',
-      '.community-row{display:flex;gap:8px;align-items:center}',
-      '.filter-bar{display:flex;gap:8px;flex-wrap:wrap}',
-      '.notif-panel{position:fixed;right:12px;top:90px;background:#fff;border:1px solid var(--c-border);border-radius:10px;width:380px;max-height:320px;overflow:auto;padding:8px;box-shadow:0 8px 20px rgba(0,0,0,.08);z-index:50}',
-      '@media (max-width:980px){.community-layout{grid-template-columns:1fr}}',
-      '@media (max-width:600px){.community-btn{width:auto}.community-input{min-width:180px}}'
+      '.comment-actions .community-btn{padding:6px 10px;font-size:12px}',
+
+      /* suggest dropdown + notifications */
+      '#forum-suggest{position:absolute;top:34px;left:0;right:0;background:#fff;border:1px solid #e5e7eb;border-radius:10px;display:none;z-index:5;overflow:hidden;box-shadow:0 12px 24px rgba(0,0,0,.08)}',
+      '.s-item{padding:8px 10px;cursor:pointer;border-top:1px solid #f1f5f9}',
+      '.s-item:hover{background:#f8fafc}',
+      '#notif-panel{display:none;position:fixed;right:12px;top:90px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;width:380px;max-height:340px;overflow:auto;padding:10px;box-shadow:0 16px 40px rgba(0,0,0,.12);z-index:50}',
+
+      /* markdown inside posts/comments */
+      '.thread-body,.comment-body{color:#0f172a;font-size:15px;line-height:1.6}',
+      '.thread-body h1,.comment-body h1{font-size:22px;margin:12px 0 8px;line-height:1.3}',
+      'br{display:none}',
+      '.thread-body h2,.comment-body h2{font-size:18px;margin:10px 0 6px;line-height:1.35}',
+      '.thread-body h3,.comment-body h3{font-size:16px;margin:8px 0 6px;line-height:1.4}',
+      '.thread-body p,.comment-body p{margin:8px 0}',
+      '.thread-body ul,.comment-body ul{margin:8px 0 8px 22px;padding:0;list-style:disc outside}',
+      '.thread-body li,.comment-body li{margin:6px 0}',
+      '.thread-body a,.comment-body a{color:#0a66c2;text-decoration:underline;word-break:break-word}',
+      '.thread-body img,.comment-body img{max-width:100%;height:auto;border-radius:8px;display:block;margin:10px 0}',
+
+      /* per-card inputs so they don’t feel “stretchy” */
+      '.community-card .comment-input{min-width:180px}',
+
+      /* misc */
+      '.vote.voted{font-weight:700}',
+      '@media (max-width:600px){.community-row{flex-wrap:wrap}.community-btn{width:auto}.community-input{min-width:180px}}'
     ].join('');
     var style = document.createElement('style');
     style.id = 'community-style';
@@ -105,19 +101,15 @@
 
     // Images: ![alt](http...)
     s = s.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,
-      function (_m, alt, url) { return '<img src="' + url + '" alt="' + escapeHtml(alt) + '" loading="lazy">'; });
+      (m, alt, url) => `<img src="${url}" alt="${escapeHtml(alt)}" loading="lazy">`);
 
-    // Links with text: [text](http...)
+    // Links: [text](http...)
     s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-      function (_m, text, url) { return '<a href="' + url + '" target="_blank" rel="nofollow noopener">' + escapeHtml(text) + '</a>'; });
+      (m, text, url) => `<a href="${url}" target="_blank" rel="nofollow noopener">${escapeHtml(text)}</a>`);
 
-    // Empty-text links: [](http...) → “visit link”
-    s = s.replace(/\[\s*\]\((https?:\/\/[^\s)]+)\)/g,
-      function (_m, url) { return '<a href="' + url + '" target="_blank" rel="nofollow noopener">visit link</a>'; });
-
-    // Bare image URLs
+    // Bare image URLs on their own line
     s = s.replace(/(^|\s)(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp))(?!\))/gi,
-      function (_m, lead, url) { return lead + '<img src="' + url + '" alt="" loading="lazy">'; });
+      (m, lead, url) => `${lead}<img src="${url}" alt="" loading="lazy">`);
 
     // Headings
     s = s.replace(/^\s*###\s+(.+)$/gm, '<h3>$1</h3>');
@@ -126,7 +118,7 @@
 
     // Bullet list items → wrap groups in <ul>
     s = s.replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>');
-    s = s.replace(/(?:<li>.*<\/li>\s*)+/g, function (m) { return '<ul>' + m + '</ul>'; });
+    s = s.replace(/(?:<li>.*<\/li>\s*)+/g, function (m) { return `<ul>${m}</ul>`; });
 
     // Emphasis
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -135,7 +127,7 @@
     // Paragraphs / line breaks
     s = s.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>');
 
-    return '<p>' + s + '</p>';
+    return `<p>${s}</p>`;
   }
 
   /* ---------- shop & customer ---------- */
@@ -194,9 +186,12 @@
   function api(path, opts) {
     opts = opts || {};
     var base = (window.__FORUM_PROXY__ || '/apps/community') + path;
+    var shop = window.__FORUM_SHOP__ || getShop();
 
-    // ⛔️ Do NOT add ?shop=... from the browser.
-    var q = toQuery(opts.qs || {});
+    var merged = Object.assign({}, opts.qs || {});
+    if (shop) merged.shop = shop;
+
+    var q = toQuery(merged);
     var url = base + (base.indexOf('?') >= 0 ? (q ? '&' + q.slice(1) : '') : q);
 
     return withTimeout(fetch(url, {
@@ -209,10 +204,6 @@
       return r.json();
     });
   }
-
-
-
-
   function pingProxy() {
     return api('/ping').then(function (j) { return { ok: true, json: j }; }, function (e) { return { ok: false, error: e }; });
   }
@@ -260,61 +251,51 @@
     return bar;
   }
 
-  /* ---------- UI template (two-column layout) ---------- */
+  /* ---------- UI template ---------- */
   function template(root) {
     injectStyles();
     root.innerHTML = [
       '<div class="community-box">',
-      '  <div class="community-layout">',
-      '    <aside class="community-sidebar">',
-      '      <div class="side-card">',
-      '        <div class="side-header">Categories</div>',
-      '        <ul id="topic-list" class="topic-list" role="list"></ul>',
-      '      </div>',
-      '      <!-- hidden native select for accessibility/fallback -->',
-      '      <select id="cat-filter" class="community-input" aria-label="Category filter" style="display:none"></select>',
-      '    </aside>',
-      '    <main class="community-main">',
-      '      <div id="t-msg" class="community-meta" aria-live="polite" style="min-height:18px;margin:6px 0"></div>',
-      '      <div class="controls">',
-      '        <div style="position:relative;flex:1">',
-      '          <input id="forum-search" class="community-input" aria-label="Search" placeholder="Search titles, tags, categories…" style="min-width:240px;width:100%"/>',
-      '          <div id="forum-suggest" style="position:absolute;top:38px;left:0;right:0;background:#fff;border:1px solid #e5e7eb;display:none;z-index:5;border-radius:10px;overflow:hidden"></div>',
-      '        </div>',
-      '        <div class="filter-bar">',
-      '          <select id="forum-sort" class="community-input" aria-label="Sort" style="width:auto">',
-      '            <option value="">New</option>',
-      '            <option value="top">Top</option>',
-      '            <option value="discussed">Most discussed</option>',
-      '            <option value="hot">Hot</option>',
-      '          </select>',
-      '          <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
-      '            <option value="day">Day</option>',
-      '            <option value="week" selected>Week</option>',
-      '            <option value="month">Month</option>',
-      '          </select>',
-      '          <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto"/>',
-      '          <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto"/>',
-      '          <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
-      '          <button id="notif-btn" class="community-btn" type="button" style="position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
-      '          <div id="notif-panel" class="notif-panel" style="display:none"></div>',
-      '        </div>',
-      '      </div>',
-      '      <div id="rte-bar"></div>',
-      '      <textarea id="thread-body" class="community-textarea" rows="4" placeholder="Write details... Supports Markdown for headings, lists, links, and images."></textarea>',
-      '      <div id="thread-preview" style="display:none;background:var(--c-soft);border:1px solid var(--c-border);padding:10px;border-radius:10px;"></div>',
-      '      <div class="community-row" style="margin-top:8px">',
-      '        <input id="thread-title" class="community-input" aria-label="Thread title" placeholder="Start a new thread (title)"/>',
-      '        <input id="thread-tags" class="community-input" aria-label="Tags" placeholder="tags (comma separated)"/>',
-      '        <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="thread-anon" aria-label="Post anonymously"/><span class="community-meta">Anonymous</span></label>',
-      '        <button id="thread-preview-toggle" class="community-btn" type="button" aria-pressed="false">Preview</button>',
-      '        <button id="thread-submit" class="community-btn primary">Post</button>',
-      '      </div>',
-      '      <div id="threads" role="list"></div>',
-      '      <div id="load-more-wrap" style="text-align:center;margin:12px 0;display:none">',
-      '        <button id="load-more" class="community-btn" type="button" aria-label="Load more threads">Load more</button>',
-      '      </div>',
-      '    </main>',
+      '  <div id="t-msg" class="community-meta" aria-live="polite" style="min-height:18px;margin-bottom:6px"></div>',
+      '  <div class="community-row" style="flex-wrap:wrap;gap:8px;align-items:center">',
+      '    <div style="position:relative;flex:1">',
+      '      <input id="forum-search" class="community-input" aria-label="Search" placeholder="Search titles, tags, categories…" style="min-width:220px;width:100%"/>',
+      '      <div id="forum-suggest"></div>',
+      '    </div>',
+      '    <select id="forum-sort" class="community-input" aria-label="Sort" style="width:auto">',
+      '      <option value="">New</option>',
+      '      <option value="top">Top</option>',
+      '      <option value="discussed">Most discussed</option>',
+      '      <option value="hot">Hot</option>',
+      '    </select>',
+      '    <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
+      '      <option value="day">Day</option>',
+      '      <option value="week" selected>Week</option>',
+      '      <option value="month">Month</option>',
+      '    </select>',
+      '    <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto"/>',
+      '    <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto"/>',
+      '    <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
+      '    <button id="notif-btn" class="community-btn" type="button" style="position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
+      '    <div id="notif-panel"></div>',
+      '  </div>',
+      '  <div class="community-row" style="margin-top:8px">',
+      '    <select id="cat-filter" class="community-input" aria-label="Category filter"></select>',
+      '    <input id="thread-title" class="community-input" aria-label="Thread title" placeholder="Start a new thread (title)"/>',
+      '  </div>',
+      '  <div id="rte-bar"></div>',
+      '  <textarea id="thread-body" class="community-textarea" rows="4" placeholder="Write details... Supports Markdown for headings, lists, links, and images."></textarea>',
+      '  <div id="thread-preview" style="display:none;background:#fafafa;border:1px solid #eee;padding:10px;border-radius:6px;"></div>',
+      '  <div class="community-row">',
+      '    <input id="thread-tags" class="community-input" aria-label="Tags" placeholder="tags (comma separated)"/>',
+      '    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="thread-anon" aria-label="Post anonymously"/><span class="community-meta">Anonymous</span></label>',
+      '    <button id="thread-preview-toggle" class="community-btn" type="button" aria-pressed="false">Preview</button>',
+      '    <button id="thread-submit" class="community-btn">Post</button>',
+      '  </div>',
+      '  <hr/>',
+      '  <div id="threads" role="list"></div>',
+      '  <div id="load-more-wrap" style="text-align:center;margin:12px 0;display:none">',
+      '    <button id="load-more" class="community-btn" type="button" aria-label="Load more threads">Load more</button>',
       '  </div>',
       '</div>'
     ].join('\n');
@@ -380,43 +361,41 @@
       var pinnedBadge = t.pinned ? '<span class="badge">Pinned</span>' : '';
       var votes = typeof t.votes === 'number' ? t.votes : 0;
 
-      var commentAccordion = [
-        '<details class="comments-accordion" data-tid="' + t._id + '">',
-        '  <summary><span class="summary-pill">💬 Comments</span></summary>',
-        '  <div id="comments-' + t._id + '"></div>',
-        '  <div class="community-row" style="margin-top:8px">',
-        isClosed || t.locked
-          ? '<div class="community-meta">Thread is ' + (isClosed ? 'closed' : 'locked') + ' — new replies are disabled.</div>'
-          : [
-            '  <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..." aria-label="Write a comment"/>',
-            '  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="' + t._id + '"/><span class="community-meta">Anonymous</span></label>',
-            '  <button data-tid="' + t._id + '" class="community-btn comment-btn">Reply</button>',
-            '  <button data-tid="' + t._id + '" class="community-btn report-btn" title="Report">Report</button>'
-          ].join(''),
-        '  </div>',
-        '</details>'
-      ].join('');
-
+      var replySection = '';
+      if (isClosed || t.locked) {
+        replySection = '<div class="community-meta">Thread is ' + (isClosed ? 'closed' : 'locked') + ' — new replies are disabled.</div>';
+      } else {
+        replySection = [
+          '<div class="community-row">',
+          '  <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..." aria-label="Write a comment"/>',
+          '  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="' + t._id + '"/><span class="community-meta">Anonymous</span></label>',
+          '  <button data-tid="' + t._id + '" class="community-btn comment-btn">Reply</button>',
+          '  <button data-tid="' + t._id + '" class="community-btn report-btn" title="Report">Report</button>',
+          '</div>'
+        ].join('');
+      }
       return [
         '<div class="community-card" role="listitem">',
-        '  <div class="card-head">',
-        '    <div class="thread-title">' + escapeHtml(t.title) + ' ' + pinnedBadge + ' ' + closedBadge + '</div>',
-        '    <button class="vote" type="button" role="button" tabindex="0" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0">▲ ' + votes + '</button>',
+        '  <div style="display:flex;justify-content:space-between;align-items:center">',
+        '    <div><strong style="font-size:18px;color:#0f172a">' + escapeHtml(t.title) + '</strong> ' + pinnedBadge + ' ' + closedBadge + '</div>',
+        '    <button class="vote" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0">▲ ' + votes + '</button>',
         '  </div>',
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
         '  <div class="thread-body">' + renderMarkdown(t.body || '') + '</div>',
-        '  <div style="margin:6px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">#' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
+        '  <div style="margin:8px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
         threadActionsHTML(t, cid),
-        commentAccordion,
+        '  <div id="poll-' + t._id + '" class="community-poll" style="margin:8px 0"></div>',
+        '  <div id="comments-' + t._id + '"></div>',
+        replySection,
         '</div>'
       ].join('');
     }).join(''));
   }
 
-  /* ---------- comments (with reply dropdowns) ---------- */
+  /* ---------- comments ---------- */
   function renderCommentTree(list, cid) {
     function one(c, depth) {
-      var pad = 'style="margin-left:' + (depth * 0) + 'px"'; // visual offset handled by replies <details>
+      var pad = 'style="margin-left:' + (depth * 16) + 'px"';
       var anon = c && c.author && c.author.isAnonymous;
       var name = anon ? 'anon' : (c && c.author && (c.author.displayName || c.author.name) || 'anon');
       var safeName = escapeHtml(name);
@@ -427,20 +406,15 @@
       if (canDel) {
         selfActions += '<button class="community-btn c-delete" data-id="' + c._id + '">Delete</button>';
       }
-      var replyBtn = '<button class="community-btn reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '">Reply</button>';
-
+      var replyBtn = '<button class="community-btn reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '" style="padding:6px 10px;font-size:12px">Reply</button>';
       var self =
         '<div class="community-comment" ' + pad + '>' +
-        '<button class="vote" type="button" role="button" tabindex="0" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="margin-right:8px">▲ ' + votes + '</button>' +
-        '<b>' + safeName + '</b>: <span class="comment-body">' + renderMarkdown(c.body || '') + '</span>' +
+        '<button class="vote" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="margin-right:6px">▲ ' + votes + '</button>' +
+        '<b style="color:#0f172a">' + safeName + '</b>: <span class="comment-body">' + renderMarkdown(c.body || '') + '</span>' +
         ' <span class="comment-actions">' + replyBtn + ' ' + selfActions + '</span>' +
         '</div>';
-
-      var kidsHTML = (c.children || []).map(function (k) { return one(k, depth + 1); }).join('');
-      if (kidsHTML) {
-        kidsHTML = '<div class="replies"><details><summary>Show replies (' + (c.children || []).length + ')</summary><div>' + kidsHTML + '</div></details></div>';
-      }
-      return self + kidsHTML;
+      var kids = (c.children || []).map(function (k) { return one(k, depth + 1); }).join('');
+      return self + kids;
     }
     return (list || []).map(function (c) { return one(c, 0); }).join('') || '<div class="community-meta">No comments yet</div>';
   }
@@ -448,13 +422,11 @@
   function loadCommentsForThread(tid, cid) {
     var box = document.getElementById('comments-' + tid);
     if (!box) return;
-    if (box.__loaded) return; // only load once when accordion opens
     box.innerHTML = '<div class="community-meta">Loading comments…</div>';
     api('/comments', { qs: { threadId: tid } })
       .then(function (j) {
         if (!j || !j.success) { box.innerHTML = '<div class="community-meta">Failed to load</div>'; return; }
         box.innerHTML = renderCommentTree(j.items || [], cid);
-        box.__loaded = true;
       })
       .catch(function (e) { box.innerHTML = '<div class="community-meta">Failed: ' + e.message + '</div>'; });
   }
@@ -498,7 +470,6 @@
         var voteBtn = box.querySelector('.poll-vote-btn');
         if (!voteBtn || poll.status === 'closed') return;
         voteBtn.addEventListener('click', function () {
-          var cid = getCustomerId();
           if (!cid) { alert('Please log in to vote.'); return; }
           var inputs = box.querySelectorAll('input[name="poll-' + poll._id + '"]:checked');
           var chosen = Array.prototype.map.call(inputs, function (el) { return el.value; });
@@ -544,7 +515,7 @@
       var depth = parseInt(btn.getAttribute('data-depth') || '0', 10);
       if (depth >= 3) { alert('Max reply depth reached'); return; }
 
-      var existing = btn.parentElement.parentElement.querySelector('.reply-form');
+      var existing = btn.parentElement.querySelector('.reply-form');
       if (existing) { existing.querySelector('textarea').focus(); return; }
 
       var f = document.createElement('div');
@@ -555,10 +526,10 @@
         '  <textarea class="community-textarea" rows="2" placeholder="Write a reply..."></textarea>',
         '  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="reply-anon"/><span class="community-meta">Anonymous</span></label>',
         '  <button class="community-btn do-send">Send</button>',
-        '  <button class="community-btn do-cancel" type="button">Cancel</button>',
+        '  <button class="community-btn do-cancel" type="button" style="background:#eee;color:#333">Cancel</button>',
         '</div>'
       ].join('');
-      btn.parentElement.parentElement.insertAdjacentElement('afterend', f);
+      btn.insertAdjacentElement('afterend', f);
 
       f.querySelector('.do-cancel').addEventListener('click', function () { f.remove(); });
       f.querySelector('.do-send').addEventListener('click', function () {
@@ -566,7 +537,7 @@
         var anon = !!f.querySelector('.reply-anon').checked;
         if (!txt) return;
         var displayName = anon ? '' : getCustomerName();
-        var tid = btn.closest('.community-card').querySelector('.comments-accordion').getAttribute('data-tid');
+        var tid = btn.closest('.community-card').querySelector('.comment-input')?.getAttribute('data-tid');
         api('/comments', {
           method: 'POST',
           body: { threadId: tid, parentId: parentId, body: txt, isAnonymous: anon, customer_id: cid, display_name: displayName }
@@ -585,7 +556,7 @@
 
   /* ---------- wire actions on threads ---------- */
   function wireThreadActions(container, cid, SHOP) {
-    // Save comment drafts by thread
+    // Persist drafts for per-thread comment inputs
     qsa('.comment-input', container).forEach(function (input) {
       var tid = input.getAttribute('data-tid');
       var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
@@ -595,9 +566,8 @@
       }, 300));
     });
 
-    // Voting
-    // Voting (delegated so it works for comments loaded later)
-    function handleVote(el) {
+    /* -------- VOTING (delegated: works for threads + comments) -------- */
+    function doVote(el) {
       if (!cid) { alert('Please log in to participate.'); return; }
       if (el.__voteLock) return;
       el.__voteLock = true;
@@ -613,7 +583,6 @@
           var nowVoted = !!out.voted;
           var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
           var next = Math.max(0, current + delta);
-
           el.setAttribute('data-voted', nowVoted ? '1' : '0');
           el.setAttribute('aria-pressed', nowVoted ? 'true' : 'false');
           el.textContent = '▲ ' + next;
@@ -623,26 +592,18 @@
         .finally(function () { el.__voteLock = false; });
     }
 
-    // Clicks on any vote button (threads or comments), including ones added later
+    // One click handler for everything in the card list
     container.addEventListener('click', function (ev) {
-      var el = ev.target.closest('.vote');
-      if (el && container.contains(el)) handleVote(el);
-    });
-
-    // Keyboard support for vote buttons
-    container.addEventListener('keydown', function (ev) {
-      var el = ev.target.closest('.vote');
-      if (!el) return;
-      if (ev.key === 'Enter' || ev.key === ' ') {
-        ev.preventDefault();
-        handleVote(el);
+      // 1) Votes (thread or comment)
+      var voteEl = ev.target.closest('.vote');
+      if (voteEl && container.contains(voteEl)) {
+        doVote(voteEl);
+        return;
       }
-    });
 
-
-    // Submit new comment
-    qsa('.comment-btn', container).forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      // 2) Post a new top-level comment
+      var btn = ev.target.closest('.comment-btn');
+      if (btn) {
         if (!cid) return alert('Please log in to participate.');
         var tid = btn.getAttribute('data-tid');
         var input = qs('.comment-input[data-tid="' + tid + '"]', container);
@@ -664,53 +625,79 @@
             input.value = '';
           })
           .catch(function (e) { alert('Failed: ' + e.message); });
-      });
+        return;
+      }
+
+      // 3) Thread edit/delete controls
+      var tEdit = ev.target.closest('.t-edit');
+      var tDelete = ev.target.closest('.t-delete');
+      var tSave = ev.target.closest('.t-save');
+      var tCancel = ev.target.closest('.t-cancel');
+
+      if (tEdit) {
+        var id = tEdit.getAttribute('data-id');
+        var area = qs('#t-edit-' + id, container);
+        if (area) area.style.display = area.style.display === 'none' ? 'block' : 'none';
+        return;
+      }
+      if (tCancel) {
+        var idc = tCancel.getAttribute('data-id');
+        var areaC = qs('#t-edit-' + idc, container);
+        if (areaC) areaC.style.display = 'none';
+        return;
+      }
+      if (tSave) {
+        var ids = tSave.getAttribute('data-id');
+        var card = tSave.closest('.community-card');
+        var title = card.querySelector('.t-edit-title').value;
+        var body = card.querySelector('.t-edit-body').value;
+        api('/threads/' + ids, { method: 'PATCH', body: { title: title, body: body, customer_id: getCustomerId() } })
+          .then(function (out) {
+            if (!out || !out.success) throw new Error((out && out.message) || 'Edit failed');
+            card.querySelector('strong').textContent = title;
+            var bodyEl = card.querySelector('.thread-body');
+            if (bodyEl) bodyEl.innerHTML = renderMarkdown(body);
+            qs('#t-edit-' + ids, container).style.display = 'none';
+          })
+          .catch(function (e) { alert('Edit failed: ' + e.message); });
+        return;
+      }
+      if (tDelete) {
+        var idd = tDelete.getAttribute('data-id');
+        if (!confirm('Delete this thread?')) return;
+        api('/threads/' + idd, { method: 'DELETE', body: { customer_id: getCustomerId() } })
+          .then(function (out) {
+            if (!out || !out.success) throw new Error((out && out.message) || 'Delete failed');
+            tDelete.closest('.community-card').remove();
+          })
+          .catch(function (e) { alert('Delete failed: ' + e.message); });
+        return;
+      }
     });
 
-    // Lazy-load comments when accordion opens
-    qsa('.comments-accordion', container).forEach(function (d) {
-      d.addEventListener('toggle', function () {
-        if (d.open) {
-          var tid = d.getAttribute('data-tid');
-          loadCommentsForThread(tid, cid);
-          loadPoll(tid, SHOP, cid); // if any
-        }
-      });
+    // Keyboard support for vote buttons (Enter/Space)
+    container.addEventListener('keydown', function (ev) {
+      var v = ev.target.closest('.vote');
+      if (!v) return;
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        doVote(v);
+      }
     });
 
+    // Inline reply forms (unchanged)
     wireCommentReplies(container, cid, SHOP);
   }
 
-  /* ---------- categories (sidebar + hidden select) ---------- */
-  function renderTopicList(items) {
-    var html = ['<li><button class="topic-item active" data-id=""><span class="topic-hash">#</span> All</button></li>']
-      .concat((items || []).map(function (c) {
-        return '<li><button class="topic-item" data-id="' + c._id + '"><span class="topic-hash">#</span> ' + escapeHtml(c.name) + '</button></li>';
-      })).join('');
-    return html;
-  }
 
+  /* ---------- categories ---------- */
   function loadCategories(sel, tMsg, SHOP) {
-    return api('/categories')
+    return api('/categories', { qs: { shop: SHOP } })
       .then(function (data) {
         var opts = ['<option value="">All categories</option>'].concat((data.items || []).map(function (c) {
           return '<option value="' + c._id + '">' + escapeHtml(c.name) + '</option>';
         })).join('');
         sel.innerHTML = opts;
-
-        var list = qs('#topic-list');
-        if (list) {
-          list.innerHTML = renderTopicList(data.items || []);
-          list.addEventListener('click', function (e) {
-            var btn = e.target.closest('.topic-item'); if (!btn) return;
-            qsa('.topic-item', list).forEach(function (b) { b.classList.remove('active'); });
-            btn.classList.add('active');
-            sel.value = btn.getAttribute('data-id') || '';
-            // trigger refresh outside:
-            var ev = new CustomEvent('topic-change', { bubbles: true });
-            list.dispatchEvent(ev);
-          });
-        }
       })
       .catch(function (e) { setMsg(tMsg, 'Could not load categories: ' + e.message, true); });
   }
@@ -755,7 +742,7 @@
         var items = data.items || [];
         loading(container, false);
         renderThreads(container, items, cid);
-        // Comments now lazy-loaded when each accordion is opened
+        items.forEach(function (t) { loadCommentsForThread(t._id, cid); loadPoll(t._id, SHOP, cid); });
         wireThreadActions(container, cid, SHOP);
 
         container.__state.next = data.next || null;
@@ -791,7 +778,7 @@
     var box = qs('#forum-suggest', root);
     function hide() { box.style.display = 'none'; box.innerHTML = ''; }
     function show(html) { box.innerHTML = html; box.style.display = html ? 'block' : 'none'; }
-    function row(html) { return '<div class="s-item" style="padding:8px 10px;cursor:pointer;border-top:1px solid #eee">' + html + '</div>'; }
+    function row(html) { return '<div class="s-item">' + html + '</div>'; }
 
     var doSuggest = debounce(function () {
       var q = input.value.trim(); if (!q) { hide(); return; }
@@ -801,9 +788,9 @@
         var tags = (data.tags || []).map(function (t) { return row('#' + escapeHtml(t)); }).join('');
         var cats = (data.categories || []).map(function (c) { return row('📂 ' + escapeHtml(c.name) + ' (' + escapeHtml(c.slug) + ')'); }).join('');
         var content = '';
-        if (titles) content += '<div style="padding:6px 8px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Titles</div>' + titles;
-        if (tags) content += '<div style="padding:6px 8px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Tags</div>' + tags;
-        if (cats) content += '<div style="padding:6px 8px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Categories</div>' + cats;
+        if (titles) content += '<div style="padding:8px 10px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Titles</div>' + titles;
+        if (tags) content += '<div style="padding:8px 10px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Tags</div>' + tags;
+        if (cats) content += '<div style="padding:8px 10px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Categories</div>' + cats;
         show(content || '');
       }).catch(function () { hide(); });
     }, 150);
@@ -862,9 +849,6 @@
       opts = opts || {};
       var root = qs(selector); if (!root) return;
 
-      // Ensure styles exist even if we exit early for login gate
-      injectStyles();
-
       if (isDesignMode()) {
         root.innerHTML = '<div class="community-box">Community widget preview is unavailable in the Theme Editor. Open the storefront (View store) to test.</div>';
         return;
@@ -876,28 +860,11 @@
       var SHOP = getShop();
       var cid = getCustomerId();
 
-      // private forum → require login (professional card)
+      // private forum → require login
       if (!cid) {
-        root.innerHTML = [
-          '<div class="community-box">',
-          '  <div class="community-card auth-gate" role="region" aria-labelledby="auth-title">',
-          '    <div class="auth-title" id="auth-title">Join the community</div>',
-          '    <p class="auth-desc">Sign in to start new threads, up-vote ideas, and reply to others.</p>',
-          '    <ul class="auth-features">',
-          '      <li>Post questions & feedback</li>',
-          '      <li>Vote on ideas you like</li>',
-          '      <li>Join Polls</li>',
-          '    </ul>',
-          '    <div class="auth-actions">',
-          '      <a class="community-btn primary" href="/account/login">Sign in</a>',
-          '      <a class="community-btn" href="/account/register">Create account</a>',
-          '    </div>',
-          '  </div>',
-          '</div>'
-        ].join('');
+        root.innerHTML = '<div class="community-box">Please <a href="/account/login">log in</a> to view and participate in the community.</div>';
         return;
       }
-
       if (!SHOP) {
         root.innerHTML = '<div class="community-box">Shop domain not detected. Add <meta name="forum-shop" content="{{ shop.permanent_domain }}"> to theme.</div>';
         return;
@@ -965,10 +932,7 @@
 
         wireSuggest(root, SHOP, loadNow);
         loadCategories(sel, tMsg, SHOP).then(function () { return loadNow(); });
-
-        // React to sidebar topic clicks
-        var topicList = qs('#topic-list', root);
-        if (topicList) topicList.addEventListener('topic-change', function () { loadNow(); });
+        sel.addEventListener('change', function () { loadNow(); });
 
         var draft = wireThreadDraft(root, SHOP, cid);
         qs('#thread-submit', root).addEventListener('click', function () {

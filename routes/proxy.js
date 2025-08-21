@@ -25,16 +25,6 @@ function normalizeShop(s) {
     .trim();
 }
 
-/* ---------------------------- Debug ---------------------------------- */
-router.get('/_whoami', (req, res) => {
-  res.json({
-    success: true,
-    headerShop: req.get('X-Shopify-Shop-Domain') || null,
-    queryShop: req.query.shop || null,
-    resolvedShop: req.shop || null,
-  });
-});
-
 // ✅ Allow safe inline HTML for headings, lists, links, images, etc.
 const CLEAN_OPTS = {
   allowedTags: [
@@ -123,24 +113,19 @@ router.use((req, res, next) => {
 });
 
 // Normalize ?shop for every request
-router.use((req, res, next) => {
-  const headerShop = (req.get('X-Shopify-Shop-Domain') || '').toLowerCase().trim();
-  const queryShop = (req.query.shop || '').toLowerCase().trim(); // Shopify also sends this
-  req.shop = headerShop || queryShop;
-  if (!req.shop) return res.status(400).json({ success: false, message: 'Missing shop' });
+router.use((req, _res, next) => {
+  if (req.query && typeof req.query.shop === 'string') {
+    req.query.shop = normalizeShop(req.query.shop);
+  }
   next();
 });
 
 /* -------------------------------- Categories --------------------------- */
 router.get('/categories', async (req, res) => {
-  try {
-    const items = await Category.find({ shop: req.shop }).sort({ order: 1 }).lean();
-    res.json({ success: true, items });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
+  const shop = req.query.shop;
+  const items = await Category.find({ shop }).sort({ order: 1, name: 1 }).lean();
+  res.json({ success: true, items });
 });
-
 
 /* -------------------------------- Threads ------------------------------ */
 // List threads with filters, search, sort, pagination, periods & date range
