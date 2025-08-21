@@ -48,6 +48,7 @@
       '.badge{display:inline-block;background:#eef3ff;border:1px solid #dbe6ff;padding:2px 8px;border-radius:999px;font-size:11px;margin-left:6px}',
       '.vote{font:inherit;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:#fff}',
       '.vote:hover{border-color:#cbd5e1}',
+      'br{display:none}',
       '.vote.voted, .vote[aria-pressed="true"]{background:#0a66c211;border-color:#0a66c233;font-weight:600}',
       '.reply-form .community-textarea{min-height:60px}',
       '.comment-actions{display:inline-flex;gap:8px;margin-left:8px}',
