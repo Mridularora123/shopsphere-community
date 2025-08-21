@@ -45,6 +45,7 @@
       '.topic-item:hover{background:var(--c-soft)}',
       '.topic-item.active{background:#fff;border-color:var(--c-accent);box-shadow:0 0 0 3px rgba(255,122,89,.15)}',
       '.topic-hash{color:var(--c-mut);}',
+      'br{display:none}',
       '.community-main .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}',
       '.community-input,.community-textarea{flex:1 1 auto;padding:10px 12px;border:1px solid var(--c-border);border-radius:10px;background:#fff;min-width:0}',
       '.community-textarea{width:100%}',
