@@ -30,64 +30,44 @@
   function isDesignMode() { try { return !!(window.Shopify && Shopify.designMode); } catch (_) { return false; } }
   var debounce = function (fn, ms) { var t; return function () { var a = arguments; clearTimeout(t); t = setTimeout(function () { fn.apply(null, a); }, ms || 200); }; };
 
-  /* ---------- modern, scoped styles (no functionality changes) ---------- */
+  /* ---------- professional minimal styles ---------- */
   function injectStyles() {
     if (document.getElementById('community-style')) return;
     var css = [
-      /* layout + type */
-      '.community-box{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:920px;margin:0 auto;padding:8px 16px}',
-      '.community-row{display:flex;gap:12px;align-items:center}',
-      '.community-meta{color:#64748b;font-size:12px}',
-      'hr{border:0;height:1px;background:#f1f5f9;margin:14px 0}',
-
-      /* inputs / textareas */
-      '.community-input,.community-textarea{flex:1 1 auto;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;min-width:0;outline:none;transition:border-color .15s ease,box-shadow .15s ease}',
-      '.community-input:focus,.community-textarea:focus{border-color:#0a66c2;box-shadow:0 0 0 3px rgba(10,102,194,.12)}',
-      '.community-textarea{width:100%;resize:vertical}',
-
-      /* buttons */
-      '.community-btn{padding:8px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-weight:600;line-height:1.1;transition:background .15s ease,color .15s ease,border-color .15s ease,box-shadow .15s ease}',
-      '.community-btn:hover{background:#0a66c2;color:#fff;border-color:#0a66c2}',
-      '.community-btn:active{transform:translateY(1px)}',
-
-      /* cards + chips */
-      '.community-card{border:1px solid #e5e7eb;border-radius:14px;padding:16px;margin:12px 0;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.05)}',
-      '.community-tag{display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:2px 10px;margin-right:6px;font-size:12px;color:#334155}',
-      '.badge{display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;padding:2px 8px;border-radius:999px;font-size:11px;color:#334155;margin-left:6px}',
-
-      /* vote chip */
-      '.vote{cursor:pointer;background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:6px 10px;line-height:1;font-weight:700;color:#334155}',
-      '.vote.voted{background:#0a66c2;border-color:#0a66c2;color:#fff}',
-
-      /* reply form */
-      '.reply-form .community-textarea{min-height:64px}',
+      ':root{--bg:#f7f7fb;--card:#fff;--text:#111827;--muted:#636b74;--border:#e5e7eb;--primary:#0a66c2;--radius:14px;--shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06)}',
+      '.community-box{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:860px;margin:0 auto;padding:8px}',
+      '.community-row{display:flex;gap:8px;align-items:center}',
+      '.community-input,.community-textarea,select{flex:1 1 auto;padding:10px 12px;border:1px solid var(--border);border-radius:10px;min-width:0;background:#fff}',
+      '.community-input:focus,.community-textarea:focus,select:focus{outline:none;box-shadow:0 0 0 3px rgba(10,102,194,.12);border-color:#c0d3f2}',
+      '.community-textarea{width:100%}',
+      '.community-btn{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;cursor:pointer;transition:.15s ease;border-color:var(--border)}',
+      '.community-btn:hover{border-color:#cbd5e1;box-shadow:0 1px 0 rgba(0,0,0,.03)}',
+      '.community-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin:12px 0;box-shadow:var(--shadow)}',
+      '.community-tag{display:inline-block;background:#eef3ff;border:1px solid #dbe6ff;border-radius:999px;padding:2px 10px;margin-right:6px;font-size:12px}',
+      '.community-meta{color:#6b7280;font-size:12px}',
+      '.badge{display:inline-block;background:#eef3ff;border:1px solid #dbe6ff;padding:2px 8px;border-radius:999px;font-size:11px;margin-left:6px}',
+      '.vote{font:inherit;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:#fff}',
+      '.vote:hover{border-color:#cbd5e1}',
+      '.vote.voted, .vote[aria-pressed="true"]{background:#0a66c211;border-color:#0a66c233;font-weight:600}',
+      '.reply-form .community-textarea{min-height:60px}',
       '.comment-actions{display:inline-flex;gap:8px;margin-left:8px}',
-      '.comment-actions .community-btn{padding:6px 10px;font-size:12px}',
-
-      /* suggest dropdown + notifications */
-      '#forum-suggest{position:absolute;top:34px;left:0;right:0;background:#fff;border:1px solid #e5e7eb;border-radius:10px;display:none;z-index:5;overflow:hidden;box-shadow:0 12px 24px rgba(0,0,0,.08)}',
-      '.s-item{padding:8px 10px;cursor:pointer;border-top:1px solid #f1f5f9}',
-      '.s-item:hover{background:#f8fafc}',
-      '#notif-panel{display:none;position:fixed;right:12px;top:90px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;width:380px;max-height:340px;overflow:auto;padding:10px;box-shadow:0 16px 40px rgba(0,0,0,.12);z-index:50}',
-
-      /* markdown inside posts/comments */
-      '.thread-body,.comment-body{color:#0f172a;font-size:15px;line-height:1.6}',
-      '.thread-body h1,.comment-body h1{font-size:22px;margin:12px 0 8px;line-height:1.3}',
-      'br{display:none}',
-      '.thread-body h2,.comment-body h2{font-size:18px;margin:10px 0 6px;line-height:1.35}',
-      '.thread-body h3,.comment-body h3{font-size:16px;margin:8px 0 6px;line-height:1.4}',
-      '.thread-body p,.comment-body p{margin:8px 0}',
-      '.thread-body ul,.comment-body ul{margin:8px 0 8px 22px;padding:0;list-style:disc outside}',
-      '.thread-body li,.comment-body li{margin:6px 0}',
-      '.thread-body a,.comment-body a{color:#0a66c2;text-decoration:underline;word-break:break-word}',
-      '.thread-body img,.comment-body img{max-width:100%;height:auto;border-radius:8px;display:block;margin:10px 0}',
-
-      /* per-card inputs so they don’t feel “stretchy” */
-      '.community-card .comment-input{min-width:180px}',
-
-      /* misc */
-      '.vote.voted{font-weight:700}',
-      '@media (max-width:600px){.community-row{flex-wrap:wrap}.community-btn{width:auto}.community-input{min-width:180px}}'
+      '.s-item:hover{background:#f6f6f9}',
+      '.thread-body,.comment-body{color:var(--text);line-height:1.55}',
+      '.thread-body img,.comment-body img{max-width:100%;height:auto;border-radius:10px;display:block;margin:10px 0}',
+      '.thread-body a,.comment-body a{color:var(--primary);text-decoration:underline;word-break:break-word}',
+      '.thread-body h1,.comment-body h1{font-size:28px;margin:12px 0 6px}',
+      '.thread-body h2,.comment-body h2{font-size:22px;margin:10px 0 6px}',
+      '.thread-body h3,.comment-body h3{font-size:18px;margin:8px 0 4px}',
+      '.thread-body ul,.comment-body ul{list-style:disc;padding-left:1.2rem;margin:8px 0}',
+      '.community-comment{padding:8px 0 8px 12px;border-left:2px solid #eef2f7;margin:4px 0}',
+      '.reply-btn{background:#fff;border:1px solid var(--border);border-radius:8px;padding:4px 10px;cursor:pointer}',
+      '.reply-btn:hover{border-color:#cbd5e1}',
+      '.divider{height:1px;background:var(--border);margin:12px 0}',
+      '#forum-suggest{border-radius:10px;box-shadow:var(--shadow);overflow:hidden}',
+      '#notif-panel{background:#fff}',
+      '#notif-panel li{list-style:none;padding:10px;border-top:1px solid var(--border)}',
+      '.pill{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:4px 10px}',
+      '@media (max-width:600px){.community-row{flex-wrap:wrap}.community-input{min-width:180px}}'
     ].join('');
     var style = document.createElement('style');
     style.id = 'community-style';
@@ -260,7 +240,7 @@
       '  <div class="community-row" style="flex-wrap:wrap;gap:8px;align-items:center">',
       '    <div style="position:relative;flex:1">',
       '      <input id="forum-search" class="community-input" aria-label="Search" placeholder="Search titles, tags, categories…" style="min-width:220px;width:100%"/>',
-      '      <div id="forum-suggest"></div>',
+      '      <div id="forum-suggest" style="position:absolute;top:38px;left:0;right:0;background:#fff;border:1px solid var(--border);display:none;z-index:5"></div>',
       '    </div>',
       '    <select id="forum-sort" class="community-input" aria-label="Sort" style="width:auto">',
       '      <option value="">New</option>',
@@ -277,7 +257,7 @@
       '    <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto"/>',
       '    <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
       '    <button id="notif-btn" class="community-btn" type="button" style="position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
-      '    <div id="notif-panel"></div>',
+      '    <div id="notif-panel" style="display:none;position:fixed;right:12px;top:90px;background:#fff;border:1px solid var(--border);border-radius:12px;width:380px;max-height:320px;overflow:auto;padding:8px;box-shadow:var(--shadow);z-index:50"></div>',
       '  </div>',
       '  <div class="community-row" style="margin-top:8px">',
       '    <select id="cat-filter" class="community-input" aria-label="Category filter"></select>',
@@ -285,14 +265,14 @@
       '  </div>',
       '  <div id="rte-bar"></div>',
       '  <textarea id="thread-body" class="community-textarea" rows="4" placeholder="Write details... Supports Markdown for headings, lists, links, and images."></textarea>',
-      '  <div id="thread-preview" style="display:none;background:#fafafa;border:1px solid #eee;padding:10px;border-radius:6px;"></div>',
+      '  <div id="thread-preview" class="community-card" style="display:none;background:#fafafa;border:1px solid #eee;"></div>',
       '  <div class="community-row">',
       '    <input id="thread-tags" class="community-input" aria-label="Tags" placeholder="tags (comma separated)"/>',
-      '    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="thread-anon" aria-label="Post anonymously"/><span class="community-meta">Anonymous</span></label>',
+      '    <label class="community-meta" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="thread-anon" aria-label="Post anonymously"/><span>Anonymous</span></label>',
       '    <button id="thread-preview-toggle" class="community-btn" type="button" aria-pressed="false">Preview</button>',
       '    <button id="thread-submit" class="community-btn">Post</button>',
       '  </div>',
-      '  <hr/>',
+      '  <div class="divider"></div>',
       '  <div id="threads" role="list"></div>',
       '  <div id="load-more-wrap" style="text-align:center;margin:12px 0;display:none">',
       '    <button id="load-more" class="community-btn" type="button" aria-label="Load more threads">Load more</button>',
@@ -317,7 +297,7 @@
     else if (n.type === 'announcement') body = (n.payload && n.payload.message) || 'Announcement';
     else if (n.type === 'digest') body = 'Weekly roundup';
 
-    return '<li style="padding:6px 0;border-top:1px solid #eee">' +
+    return '<li>' +
       '<div><b>' + body + '</b></div>' +
       (n.payload && n.payload.threads
         ? '<div class="community-meta">' +
@@ -368,7 +348,7 @@
         replySection = [
           '<div class="community-row">',
           '  <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..." aria-label="Write a comment"/>',
-          '  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="' + t._id + '"/><span class="community-meta">Anonymous</span></label>',
+          '  <label class="community-meta" style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="' + t._id + '"/><span>Anonymous</span></label>',
           '  <button data-tid="' + t._id + '" class="community-btn comment-btn">Reply</button>',
           '  <button data-tid="' + t._id + '" class="community-btn report-btn" title="Report">Report</button>',
           '</div>'
@@ -376,13 +356,13 @@
       }
       return [
         '<div class="community-card" role="listitem">',
-        '  <div style="display:flex;justify-content:space-between;align-items:center">',
-        '    <div><strong style="font-size:18px;color:#0f172a">' + escapeHtml(t.title) + '</strong> ' + pinnedBadge + ' ' + closedBadge + '</div>',
-        '    <button class="vote" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0">▲ ' + votes + '</button>',
+        '  <div class="community-row" style="justify-content:space-between">',
+        '    <div><strong style="font-size:16px">' + escapeHtml(t.title) + '</strong> ' + pinnedBadge + ' ' + closedBadge + '</div>',
+        '    <button class="vote" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0" style="cursor:pointer;background:none;border:none">▲ ' + votes + '</button>',
         '  </div>',
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
-        '  <div class="thread-body">' + renderMarkdown(t.body || '') + '</div>',
-        '  <div style="margin:8px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
+        '  <div class="thread-body" style="margin-top:6px">' + renderMarkdown(t.body || '') + '</div>',
+        '  <div style="margin:6px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
         threadActionsHTML(t, cid),
         '  <div id="poll-' + t._id + '" class="community-poll" style="margin:8px 0"></div>',
         '  <div id="comments-' + t._id + '"></div>',
@@ -406,11 +386,11 @@
       if (canDel) {
         selfActions += '<button class="community-btn c-delete" data-id="' + c._id + '">Delete</button>';
       }
-      var replyBtn = '<button class="community-btn reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '" style="padding:6px 10px;font-size:12px">Reply</button>';
+      var replyBtn = '<button class="reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '" style="margin-left:6px">Reply</button>';
       var self =
         '<div class="community-comment" ' + pad + '>' +
-        '<button class="vote" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="margin-right:6px">▲ ' + votes + '</button>' +
-        '<b style="color:#0f172a">' + safeName + '</b>: <span class="comment-body">' + renderMarkdown(c.body || '') + '</span>' +
+        '<button class="vote" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="cursor:pointer;background:none;border:none;margin-right:6px">▲ ' + votes + '</button>' +
+        '<b>' + safeName + '</b>: <span class="comment-body">' + renderMarkdown(c.body || '') + '</span>' +
         ' <span class="comment-actions">' + replyBtn + ' ' + selfActions + '</span>' +
         '</div>';
       var kids = (c.children || []).map(function (k) { return one(k, depth + 1); }).join('');
@@ -450,7 +430,7 @@
       ? '<div class="community-meta">Poll closed</div>'
       : '<button class="community-btn poll-vote-btn" ' + disabled + '>Vote</button>';
     return (
-      '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
+      '<div class="community-poll-card" style="padding:8px;border:1px dashed var(--border);border-radius:10px;background:#fbfdff">' +
       '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(poll.question || 'Poll') + '</div>' +
       opts + footer +
       '</div>'
@@ -524,9 +504,9 @@
       f.innerHTML = [
         '<div class="community-row" style="margin-left:8px">',
         '  <textarea class="community-textarea" rows="2" placeholder="Write a reply..."></textarea>',
-        '  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="reply-anon"/><span class="community-meta">Anonymous</span></label>',
+        '  <label class="community-meta" style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="reply-anon"/><span>Anonymous</span></label>',
         '  <button class="community-btn do-send">Send</button>',
-        '  <button class="community-btn do-cancel" type="button" style="background:#eee;color:#333">Cancel</button>',
+        '  <button class="community-btn do-cancel" type="button" style="background:#f3f4f6;color:#374151">Cancel</button>',
         '</div>'
       ].join('');
       btn.insertAdjacentElement('afterend', f);
@@ -554,9 +534,8 @@
     });
   }
 
-  /* ---------- wire actions on threads ---------- */
+  /* ---------- wire actions on threads (delegated voting) ---------- */
   function wireThreadActions(container, cid, SHOP) {
-    // Persist drafts for per-thread comment inputs
     qsa('.comment-input', container).forEach(function (input) {
       var tid = input.getAttribute('data-tid');
       var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
@@ -566,17 +545,14 @@
       }, 300));
     });
 
-    /* -------- VOTING (delegated: works for threads + comments) -------- */
     function doVote(el) {
       if (!cid) { alert('Please log in to participate.'); return; }
       if (el.__voteLock) return;
       el.__voteLock = true;
-
       var id = el.getAttribute('data-id');
       var targetType = el.getAttribute('data-type') || 'thread';
       var current = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10);
       var wasVoted = el.getAttribute('data-voted') === '1';
-
       api('/votes/toggle', { method: 'POST', body: { targetType: targetType, targetId: id, customer_id: cid } })
         .then(function (out) {
           if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
@@ -592,16 +568,11 @@
         .finally(function () { el.__voteLock = false; });
     }
 
-    // One click handler for everything in the card list
+    // Single delegated listener for votes & thread controls
     container.addEventListener('click', function (ev) {
-      // 1) Votes (thread or comment)
       var voteEl = ev.target.closest('.vote');
-      if (voteEl && container.contains(voteEl)) {
-        doVote(voteEl);
-        return;
-      }
+      if (voteEl && container.contains(voteEl)) { doVote(voteEl); return; }
 
-      // 2) Post a new top-level comment
       var btn = ev.target.closest('.comment-btn');
       if (btn) {
         if (!cid) return alert('Please log in to participate.');
@@ -628,7 +599,6 @@
         return;
       }
 
-      // 3) Thread edit/delete controls
       var tEdit = ev.target.closest('.t-edit');
       var tDelete = ev.target.closest('.t-delete');
       var tSave = ev.target.closest('.t-save');
@@ -675,20 +645,15 @@
       }
     });
 
-    // Keyboard support for vote buttons (Enter/Space)
+    // Keyboard support for votes
     container.addEventListener('keydown', function (ev) {
       var v = ev.target.closest('.vote');
       if (!v) return;
-      if (ev.key === 'Enter' || ev.key === ' ') {
-        ev.preventDefault();
-        doVote(v);
-      }
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); doVote(v); }
     });
 
-    // Inline reply forms (unchanged)
     wireCommentReplies(container, cid, SHOP);
   }
-
 
   /* ---------- categories ---------- */
   function loadCategories(sel, tMsg, SHOP) {
@@ -778,7 +743,7 @@
     var box = qs('#forum-suggest', root);
     function hide() { box.style.display = 'none'; box.innerHTML = ''; }
     function show(html) { box.innerHTML = html; box.style.display = html ? 'block' : 'none'; }
-    function row(html) { return '<div class="s-item">' + html + '</div>'; }
+    function row(html) { return '<div class="s-item" style="padding:8px 10px;cursor:pointer;border-top:1px solid var(--border)">' + html + '</div>'; }
 
     var doSuggest = debounce(function () {
       var q = input.value.trim(); if (!q) { hide(); return; }
@@ -788,9 +753,9 @@
         var tags = (data.tags || []).map(function (t) { return row('#' + escapeHtml(t)); }).join('');
         var cats = (data.categories || []).map(function (c) { return row('📂 ' + escapeHtml(c.name) + ' (' + escapeHtml(c.slug) + ')'); }).join('');
         var content = '';
-        if (titles) content += '<div style="padding:8px 10px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Titles</div>' + titles;
-        if (tags) content += '<div style="padding:8px 10px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Tags</div>' + tags;
-        if (cats) content += '<div style="padding:8px 10px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Categories</div>' + cats;
+        if (titles) content += '<div style="padding:6px 8px;font-weight:600;background:#fafafa;border-bottom:1px solid var(--border)">Titles</div>' + titles;
+        if (tags) content += '<div style="padding:6px 8px;font-weight:600;background:#fafafa;border-bottom:1px solid var(--border)">Tags</div>' + tags;
+        if (cats) content += '<div style="padding:6px 8px;font-weight:600;background:#fafafa;border-bottom:1px solid var(--border)">Categories</div>' + cats;
         show(content || '');
       }).catch(function () { hide(); });
     }, 150);
