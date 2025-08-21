@@ -258,7 +258,7 @@
       '  <div class="community-layout">',
       '    <aside class="community-sidebar">',
       '      <div class="side-card">',
-      '        <div class="side-header">Topics</div>',
+      '        <div class="side-header">Categories</div>',
       '        <ul id="topic-list" class="topic-list" role="list"></ul>',
       '      </div>',
       '      <!-- hidden native select for accessibility/fallback -->',
