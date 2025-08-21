@@ -556,6 +556,7 @@
 
   /* ---------- wire actions on threads ---------- */
   function wireThreadActions(container, cid, SHOP) {
+    // Persist drafts for per-thread comment inputs
     qsa('.comment-input', container).forEach(function (input) {
       var tid = input.getAttribute('data-tid');
       var key = 'forum_draft_' + SHOP + '_' + (cid || 'anon') + '_comment_' + tid;
@@ -565,38 +566,44 @@
       }, 300));
     });
 
-    qsa('.vote', container).forEach(function (el) {
-      el.setAttribute('role', 'button');
-      el.setAttribute('tabindex', '0');
-      el.setAttribute('aria-pressed', 'false');
-      function doVote() {
-        if (!cid) { alert('Please log in to participate.'); return; }
-        if (el.__voteLock) return;
-        el.__voteLock = true;
-        var id = el.getAttribute('data-id');
-        var targetType = el.getAttribute('data-type') || 'thread';
-        var current = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10);
-        var wasVoted = el.getAttribute('data-voted') === '1';
-        api('/votes/toggle', { method: 'POST', body: { targetType: targetType, targetId: id, customer_id: cid } })
-          .then(function (out) {
-            if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
-            var nowVoted = !!out.voted;
-            var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
-            var next = Math.max(0, current + delta);
-            el.setAttribute('data-voted', nowVoted ? '1' : '0');
-            el.setAttribute('aria-pressed', nowVoted ? 'true' : 'false');
-            el.textContent = '▲ ' + next;
-            if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
-          })
-          .catch(function (e) { alert('Vote failed: ' + e.message); })
-          .finally(function () { el.__voteLock = false; });
-      }
-      el.addEventListener('click', doVote);
-      el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); doVote(); } });
-    });
+    /* -------- VOTING (delegated: works for threads + comments) -------- */
+    function doVote(el) {
+      if (!cid) { alert('Please log in to participate.'); return; }
+      if (el.__voteLock) return;
+      el.__voteLock = true;
 
-    qsa('.comment-btn', container).forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      var id = el.getAttribute('data-id');
+      var targetType = el.getAttribute('data-type') || 'thread';
+      var current = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10);
+      var wasVoted = el.getAttribute('data-voted') === '1';
+
+      api('/votes/toggle', { method: 'POST', body: { targetType: targetType, targetId: id, customer_id: cid } })
+        .then(function (out) {
+          if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
+          var nowVoted = !!out.voted;
+          var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
+          var next = Math.max(0, current + delta);
+          el.setAttribute('data-voted', nowVoted ? '1' : '0');
+          el.setAttribute('aria-pressed', nowVoted ? 'true' : 'false');
+          el.textContent = '▲ ' + next;
+          if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
+        })
+        .catch(function (e) { alert('Vote failed: ' + e.message); })
+        .finally(function () { el.__voteLock = false; });
+    }
+
+    // One click handler for everything in the card list
+    container.addEventListener('click', function (ev) {
+      // 1) Votes (thread or comment)
+      var voteEl = ev.target.closest('.vote');
+      if (voteEl && container.contains(voteEl)) {
+        doVote(voteEl);
+        return;
+      }
+
+      // 2) Post a new top-level comment
+      var btn = ev.target.closest('.comment-btn');
+      if (btn) {
         if (!cid) return alert('Please log in to participate.');
         var tid = btn.getAttribute('data-tid');
         var input = qs('.comment-input[data-tid="' + tid + '"]', container);
@@ -618,10 +625,10 @@
             input.value = '';
           })
           .catch(function (e) { alert('Failed: ' + e.message); });
-      });
-    });
+        return;
+      }
 
-    container.addEventListener('click', function (ev) {
+      // 3) Thread edit/delete controls
       var tEdit = ev.target.closest('.t-edit');
       var tDelete = ev.target.closest('.t-delete');
       var tSave = ev.target.closest('.t-save');
@@ -668,8 +675,20 @@
       }
     });
 
+    // Keyboard support for vote buttons (Enter/Space)
+    container.addEventListener('keydown', function (ev) {
+      var v = ev.target.closest('.vote');
+      if (!v) return;
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        doVote(v);
+      }
+    });
+
+    // Inline reply forms (unchanged)
     wireCommentReplies(container, cid, SHOP);
   }
+
 
   /* ---------- categories ---------- */
   function loadCategories(sel, tMsg, SHOP) {
