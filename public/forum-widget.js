@@ -405,6 +405,8 @@
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
         '  <div class="thread-body">' + renderMarkdown(t.body || '') + '</div>',
         '  <div style="margin:6px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">#' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
+        // ⬇️ poll placeholder (filled asynchronously if a poll exists)
+        '<div id="poll-' + t._id + '" class="poll-wrap" style="margin:8px 0"></div>',
         threadActionsHTML(t, cid),
         commentAccordion,
         '</div>'
@@ -666,6 +668,78 @@
       });
     });
 
+    // ---- Thread Edit / Delete (delegated) ----
+    container.addEventListener('click', function (ev) {
+      // open/close the inline editor
+      const btnEdit = ev.target.closest('.t-edit');
+      if (btnEdit && container.contains(btnEdit)) {
+        const id = btnEdit.getAttribute('data-id');
+        const area = document.getElementById('t-edit-' + id);
+        if (area) area.style.display = (area.style.display === 'block') ? 'none' : 'block';
+        return;
+      }
+
+      // cancel edit
+      const btnCancel = ev.target.closest('.t-cancel');
+      if (btnCancel && container.contains(btnCancel)) {
+        const id = btnCancel.getAttribute('data-id');
+        const area = document.getElementById('t-edit-' + id);
+        if (area) area.style.display = 'none';
+        return;
+      }
+
+      // save edit
+      const btnSave = ev.target.closest('.t-save');
+      if (btnSave && container.contains(btnSave)) {
+        const id = btnSave.getAttribute('data-id');
+        const area = document.getElementById('t-edit-' + id);
+        if (!area) return;
+
+        const title = (area.querySelector('.t-edit-title').value || '').trim();
+        const body = (area.querySelector('.t-edit-body').value || '').trim();
+        if (!title) { alert('Title required'); return; }
+
+        btnSave.disabled = true;
+        api('/threads/' + encodeURIComponent(id), {
+          method: 'PUT',
+          body: { title, body, customer_id: cid }
+        })
+          .then(function (out) {
+            if (!out || !out.success) throw new Error((out && out.message) || 'Save failed');
+            const card = area.closest('.community-card');
+            if (card) {
+              const t = card.querySelector('.thread-title'); if (t) t.textContent = title;
+              const b = card.querySelector('.thread-body'); if (b) b.innerHTML = renderMarkdown(body);
+            }
+            area.style.display = 'none';
+          })
+          .catch(function (e) { alert('Save failed: ' + e.message); })
+          .finally(function () { btnSave.disabled = false; });
+        return;
+      }
+
+      // delete thread
+      const btnDel = ev.target.closest('.t-delete');
+      if (btnDel && container.contains(btnDel)) {
+        const id = btnDel.getAttribute('data-id');
+        if (!confirm('Delete this thread?')) return;
+
+        btnDel.disabled = true;
+        api('/threads/' + encodeURIComponent(id), {
+          method: 'DELETE',
+          body: { customer_id: cid }
+        })
+          .then(function (out) {
+            if (!out || !out.success) throw new Error((out && out.message) || 'Delete failed');
+            const card = btnDel.closest('.community-card');
+            if (card) card.remove();
+          })
+          .catch(function (e) { alert('Delete failed: ' + e.message); })
+          .finally(function () { btnDel.disabled = false; });
+      }
+    });
+
+
     // Lazy-load comments when accordion opens
     qsa('.comments-accordion', container).forEach(function (d) {
       d.addEventListener('toggle', function () {
@@ -756,7 +830,8 @@
         renderThreads(container, items, cid);
         // Comments now lazy-loaded when each accordion is opened
         wireThreadActions(container, cid, SHOP);
-
+        // ⬇️ render polls immediately for each thread card
+        items.forEach(function (t) { loadPoll(t._id, SHOP, cid); });
         container.__state.next = data.next || null;
         var btn = qs('#load-more', root);
         if (container.__state.next) {
