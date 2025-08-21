@@ -289,7 +289,7 @@
       '      <select id="cat-filter" class="community-input" aria-label="Category filter" style="display:none"></select>',
       '    </aside>',
       '    <main class="community-main">',
-      '      <div id="t-msg" class="community-meta" aria-live="polite" style="min-height:18px;margin:6px 0"></div>',
+      '      <div id="t-msg" class="community-meta" aria-live="polite" style="min-height:2px;margin:0px 0"></div>',
       '      <div class="controls">',
       '        <div style="position:relative;flex:1">',
       '          <input id="forum-search" class="community-input" aria-label="Search" placeholder="Search titles, tags, categories…" style="min-width:240px;width:100%"/>',

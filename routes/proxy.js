@@ -13,8 +13,16 @@ import Report from '../models/Report.js';
 import { hotScore } from '../lib/hotScore.js';
 import Notification from '../models/Notification.js';
 import NotificationSettings, { NOTIF_DEFAULTS } from '../models/NotificationSettings.js';
+import methodOverride from 'method-override';
 
 const router = express.Router();
+
+// Ensure JSON body is parsed for proxy POSTs
+router.use(express.json());
+
+// Translate ?_method=PUT|PATCH|DELETE or X-HTTP-Method-Override into real verbs
+router.use(methodOverride('_method'));
+router.use(methodOverride('X-HTTP-Method-Override'));
 
 /* ---------------------------- Helpers ---------------------------------- */
 function normalizeShop(s) {
@@ -343,24 +351,39 @@ router.get('/comments', async (req, res) => {
   res.json({ success: true, items: roots });
 });
 
-/* --------------------------- Author edit / delete ----------------------- */
-router.patch('/threads/:id', async (req, res) => {
-  const shop = req.query.shop;
+// controller
+async function updateThread(req, res) {
+  const shop = req.query.shop || req.shop;
   const { id } = req.params;
   const { title, body, customer_id } = req.body || {};
-  if (!shop || !customer_id) return res.json({ success: false, message: 'shop and customer_id required' });
-  const t = await Thread.findById(id);
-  if (!t || t.shop !== shop) return res.json({ success: false, message: 'Not found' });
-  if (!authorCanModify(t, customer_id)) return res.json({ success: false, message: 'Edit window expired' });
 
-  if (title) t.title = String(title).slice(0, 180);
-  if (body) t.body = clean(body);
+  if (!shop || !customer_id) {
+    return res.json({ success: false, message: 'shop and customer_id required' });
+  }
+
+  const t = await Thread.findById(id);
+  if (!t || t.shop !== shop) {
+    return res.json({ success: false, message: 'Not found' });
+  }
+
+  if (!authorCanModify(t, customer_id)) {
+    return res.json({ success: false, message: 'Edit window expired' });
+  }
+
+  if (title != null) t.title = String(title).slice(0, 180);
+  if (body != null) t.body = clean(body);
+
   await t.save();
   res.json({ success: true });
-});
+}
+
+// routes
+router.patch('/threads/:id', updateThread);   // keep existing PATCH
+router.put('/threads/:id', updateThread);     // add PUT alias
+
 
 router.delete('/threads/:id', async (req, res) => {
-  const shop = req.query.shop;
+  const shop = req.shop || req.query.shop;
   const { id } = req.params;
   const { customer_id } = req.body || {};
   if (!shop || !customer_id) return res.json({ success: false, message: 'shop and customer_id required' });
