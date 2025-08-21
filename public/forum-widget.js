@@ -35,6 +35,14 @@
     if (document.getElementById('community-style')) return;
     var css = [
       ':root{--c-bg:#fff;--c-soft:#f6f7f9;--c-soft2:#f0f2f5;--c-border:#e5e7eb;--c-text:#111827;--c-mut:#6b7280;--c-accent:#ff7a59;--c-accent-2:#0a66c2;--radius:12px;--shadow:0 1px 2px rgba(0,0,0,.06),0 6px 16px rgba(0,0,0,.06)}',
+      /* --- Auth gate (login required) --- */
+      '.auth-gate{display:flex;flex-direction:column;align-items:flex-start;gap:10px}',
+      '.auth-title{font-size:18px;font-weight:700;color:var(--c-text)}',
+      '.auth-desc{color:var(--c-mut);margin:0}',
+      '.auth-features{margin:0 0 4px 18px;color:var(--c-text)}',
+      '.auth-features li{margin:2px 0}',
+      '.auth-actions{display:flex;gap:8px;flex-wrap:wrap}',
+      '.auth-actions .community-btn{text-decoration:none}',
       '.community-box{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:1100px;margin:0 auto;padding:8px}',
       '.community-layout{display:grid;grid-template-columns:260px 1fr;gap:18px}',
       '.community-sidebar{position:sticky;top:12px;height:fit-content}',
@@ -45,10 +53,11 @@
       '.topic-item:hover{background:var(--c-soft)}',
       '.topic-item.active{background:#fff;border-color:var(--c-accent);box-shadow:0 0 0 3px rgba(255,122,89,.15)}',
       '.topic-hash{color:var(--c-mut);}',
+      'br{display:none}',
       '.community-main .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}',
       '.community-input,.community-textarea{flex:1 1 auto;padding:10px 12px;border:1px solid var(--c-border);border-radius:10px;background:#fff;min-width:0}',
       '.community-textarea{width:100%}',
-      '.community-btn{padding:9px 12px;border:1px solid var(--c-border);border-radius:999px;background:#fff;cursor:pointer;line-height:1}',
+      '.community-btn{color:#121212!important;padding:9px 12px;border:1px solid var(--c-border);border-radius:999px;background:#fff;cursor:pointer;line-height:1}',
       '.community-btn:hover{box-shadow:0 0 0 3px rgba(0,0,0,.04)}',
       '.primary{background:var(--c-accent);color:#fff;border-color:var(--c-accent)}',
       '.primary:hover{box-shadow:0 0 0 4px rgba(255,122,89,.25)}',
@@ -258,7 +267,7 @@
       '  <div class="community-layout">',
       '    <aside class="community-sidebar">',
       '      <div class="side-card">',
-      '        <div class="side-header">Topics</div>',
+      '        <div class="side-header">Categories</div>',
       '        <ul id="topic-list" class="topic-list" role="list"></ul>',
       '      </div>',
       '      <!-- hidden native select for accessibility/fallback -->',
@@ -375,7 +384,7 @@
         '  <summary><span class="summary-pill">💬 Comments</span></summary>',
         '  <div id="comments-' + t._id + '"></div>',
         '  <div class="community-row" style="margin-top:8px">',
-        (isClosed || t.locked)
+        isClosed || t.locked
           ? '<div class="community-meta">Thread is ' + (isClosed ? 'closed' : 'locked') + ' — new replies are disabled.</div>'
           : [
             '  <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..." aria-label="Write a comment"/>',
@@ -391,22 +400,19 @@
         '<div class="community-card" role="listitem">',
         '  <div class="card-head">',
         '    <div class="thread-title">' + escapeHtml(t.title) + ' ' + pinnedBadge + ' ' + closedBadge + '</div>',
-        '    <button class="vote" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0">▲ ' + votes + '</button>',
+        '    <button class="vote" type="button" role="button" tabindex="0" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0">▲ ' + votes + '</button>',
         '  </div>',
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
         '  <div class="thread-body">' + renderMarkdown(t.body || '') + '</div>',
         '  <div style="margin:6px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">#' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
-
-        // ⬇️ ADD THIS PLACEHOLDER (so loadPoll has a target)
-        '  <div id="poll-' + t._id + '" class="poll-wrap" style="margin:8px 0"></div>',
-
+        // ⬇️ poll placeholder (filled asynchronously if a poll exists)
+        '<div id="poll-' + t._id + '" class="poll-wrap" style="margin:8px 0"></div>',
         threadActionsHTML(t, cid),
         commentAccordion,
         '</div>'
       ].join('');
     }).join(''));
   }
-
 
   /* ---------- comments (with reply dropdowns) ---------- */
   function renderCommentTree(list, cid) {
@@ -426,7 +432,7 @@
 
       var self =
         '<div class="community-comment" ' + pad + '>' +
-        '<button class="vote" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="margin-right:8px">▲ ' + votes + '</button>' +
+        '<button class="vote" type="button" role="button" tabindex="0" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="margin-right:8px">▲ ' + votes + '</button>' +
         '<b>' + safeName + '</b>: <span class="comment-body">' + renderMarkdown(c.body || '') + '</span>' +
         ' <span class="comment-actions">' + replyBtn + ' ' + selfActions + '</span>' +
         '</div>';
@@ -591,35 +597,49 @@
     });
 
     // Voting
-    qsa('.vote', container).forEach(function (el) {
-      el.setAttribute('role', 'button');
-      el.setAttribute('tabindex', '0');
-      el.setAttribute('aria-pressed', 'false');
-      function doVote() {
-        if (!cid) { alert('Please log in to participate.'); return; }
-        if (el.__voteLock) return;
-        el.__voteLock = true;
-        var id = el.getAttribute('data-id');
-        var targetType = el.getAttribute('data-type') || 'thread';
-        var current = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10);
-        var wasVoted = el.getAttribute('data-voted') === '1';
-        api('/votes/toggle', { method: 'POST', body: { targetType: targetType, targetId: id, customer_id: cid } })
-          .then(function (out) {
-            if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
-            var nowVoted = !!out.voted;
-            var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
-            var next = Math.max(0, current + delta);
-            el.setAttribute('data-voted', nowVoted ? '1' : '0');
-            el.setAttribute('aria-pressed', nowVoted ? 'true' : 'false');
-            el.textContent = '▲ ' + next;
-            if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
-          })
-          .catch(function (e) { alert('Vote failed: ' + e.message); })
-          .finally(function () { el.__voteLock = false; });
-      }
-      el.addEventListener('click', doVote);
-      el.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); doVote(); } });
+    // Voting (delegated so it works for comments loaded later)
+    function handleVote(el) {
+      if (!cid) { alert('Please log in to participate.'); return; }
+      if (el.__voteLock) return;
+      el.__voteLock = true;
+
+      var id = el.getAttribute('data-id');
+      var targetType = el.getAttribute('data-type') || 'thread';
+      var current = parseInt((el.textContent.match(/\d+/) || ['0'])[0], 10);
+      var wasVoted = el.getAttribute('data-voted') === '1';
+
+      api('/votes/toggle', { method: 'POST', body: { targetType: targetType, targetId: id, customer_id: cid } })
+        .then(function (out) {
+          if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
+          var nowVoted = !!out.voted;
+          var delta = (nowVoted ? 1 : 0) - (wasVoted ? 1 : 0);
+          var next = Math.max(0, current + delta);
+
+          el.setAttribute('data-voted', nowVoted ? '1' : '0');
+          el.setAttribute('aria-pressed', nowVoted ? 'true' : 'false');
+          el.textContent = '▲ ' + next;
+          if (nowVoted) el.classList.add('voted'); else el.classList.remove('voted');
+        })
+        .catch(function (e) { alert('Vote failed: ' + e.message); })
+        .finally(function () { el.__voteLock = false; });
+    }
+
+    // Clicks on any vote button (threads or comments), including ones added later
+    container.addEventListener('click', function (ev) {
+      var el = ev.target.closest('.vote');
+      if (el && container.contains(el)) handleVote(el);
     });
+
+    // Keyboard support for vote buttons
+    container.addEventListener('keydown', function (ev) {
+      var el = ev.target.closest('.vote');
+      if (!el) return;
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        handleVote(el);
+      }
+    });
+
 
     // Submit new comment
     qsa('.comment-btn', container).forEach(function (btn) {
@@ -647,6 +667,78 @@
           .catch(function (e) { alert('Failed: ' + e.message); });
       });
     });
+
+    // ---- Thread Edit / Delete (delegated) ----
+    container.addEventListener('click', function (ev) {
+      // open/close the inline editor
+      const btnEdit = ev.target.closest('.t-edit');
+      if (btnEdit && container.contains(btnEdit)) {
+        const id = btnEdit.getAttribute('data-id');
+        const area = document.getElementById('t-edit-' + id);
+        if (area) area.style.display = (area.style.display === 'block') ? 'none' : 'block';
+        return;
+      }
+
+      // cancel edit
+      const btnCancel = ev.target.closest('.t-cancel');
+      if (btnCancel && container.contains(btnCancel)) {
+        const id = btnCancel.getAttribute('data-id');
+        const area = document.getElementById('t-edit-' + id);
+        if (area) area.style.display = 'none';
+        return;
+      }
+
+      // save edit
+      const btnSave = ev.target.closest('.t-save');
+      if (btnSave && container.contains(btnSave)) {
+        const id = btnSave.getAttribute('data-id');
+        const area = document.getElementById('t-edit-' + id);
+        if (!area) return;
+
+        const title = (area.querySelector('.t-edit-title').value || '').trim();
+        const body = (area.querySelector('.t-edit-body').value || '').trim();
+        if (!title) { alert('Title required'); return; }
+
+        btnSave.disabled = true;
+        api('/threads/' + encodeURIComponent(id), {
+          method: 'PUT',
+          body: { title, body, customer_id: cid }
+        })
+          .then(function (out) {
+            if (!out || !out.success) throw new Error((out && out.message) || 'Save failed');
+            const card = area.closest('.community-card');
+            if (card) {
+              const t = card.querySelector('.thread-title'); if (t) t.textContent = title;
+              const b = card.querySelector('.thread-body'); if (b) b.innerHTML = renderMarkdown(body);
+            }
+            area.style.display = 'none';
+          })
+          .catch(function (e) { alert('Save failed: ' + e.message); })
+          .finally(function () { btnSave.disabled = false; });
+        return;
+      }
+
+      // delete thread
+      const btnDel = ev.target.closest('.t-delete');
+      if (btnDel && container.contains(btnDel)) {
+        const id = btnDel.getAttribute('data-id');
+        if (!confirm('Delete this thread?')) return;
+
+        btnDel.disabled = true;
+        api('/threads/' + encodeURIComponent(id), {
+          method: 'DELETE',
+          body: { customer_id: cid }
+        })
+          .then(function (out) {
+            if (!out || !out.success) throw new Error((out && out.message) || 'Delete failed');
+            const card = btnDel.closest('.community-card');
+            if (card) card.remove();
+          })
+          .catch(function (e) { alert('Delete failed: ' + e.message); })
+          .finally(function () { btnDel.disabled = false; });
+      }
+    });
+
 
     // Lazy-load comments when accordion opens
     qsa('.comments-accordion', container).forEach(function (d) {
@@ -738,10 +830,8 @@
         renderThreads(container, items, cid);
         // Comments now lazy-loaded when each accordion is opened
         wireThreadActions(container, cid, SHOP);
-
-        // ⬇️ ADD THIS so polls load immediately
+        // ⬇️ render polls immediately for each thread card
         items.forEach(function (t) { loadPoll(t._id, SHOP, cid); });
-
         container.__state.next = data.next || null;
         var btn = qs('#load-more', root);
         if (container.__state.next) {
@@ -846,6 +936,9 @@
       opts = opts || {};
       var root = qs(selector); if (!root) return;
 
+      // Ensure styles exist even if we exit early for login gate
+      injectStyles();
+
       if (isDesignMode()) {
         root.innerHTML = '<div class="community-box">Community widget preview is unavailable in the Theme Editor. Open the storefront (View store) to test.</div>';
         return;
@@ -857,11 +950,28 @@
       var SHOP = getShop();
       var cid = getCustomerId();
 
-      // private forum → require login
+      // private forum → require login (professional card)
       if (!cid) {
-        root.innerHTML = '<div class="community-box">Please <a href="/account/login">log in</a> to view and participate in the community.</div>';
+        root.innerHTML = [
+          '<div class="community-box">',
+          '  <div class="community-card auth-gate" role="region" aria-labelledby="auth-title">',
+          '    <div class="auth-title" id="auth-title">Join the community</div>',
+          '    <p class="auth-desc">Sign in to start new threads, up-vote ideas, and reply to others.</p>',
+          '    <ul class="auth-features">',
+          '      <li>Post questions & feedback</li>',
+          '      <li>Vote on ideas you like</li>',
+          '      <li>Join Polls</li>',
+          '    </ul>',
+          '    <div class="auth-actions">',
+          '      <a class="community-btn primary" href="/account/login">Sign in</a>',
+          '      <a class="community-btn" href="/account/register">Create account</a>',
+          '    </div>',
+          '  </div>',
+          '</div>'
+        ].join('');
         return;
       }
+
       if (!SHOP) {
         root.innerHTML = '<div class="community-box">Shop domain not detected. Add <meta name="forum-shop" content="{{ shop.permanent_domain }}"> to theme.</div>';
         return;
