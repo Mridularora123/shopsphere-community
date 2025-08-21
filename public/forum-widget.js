@@ -30,60 +30,62 @@
   function isDesignMode() { try { return !!(window.Shopify && Shopify.designMode); } catch (_) { return false; } }
   var debounce = function (fn, ms) { var t; return function () { var a = arguments; clearTimeout(t); t = setTimeout(function () { fn.apply(null, a); }, ms || 200); }; };
 
-  /* ---------- minimal styles (visual-only) ---------- */
+  /* ---------- modern, scoped styles (no functionality changes) ---------- */
   function injectStyles() {
     if (document.getElementById('community-style')) return;
     var css = [
-      /* layout + typography */
-      '.community-box{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:860px;margin:0 auto;padding:8px;line-height:1.5}',
-      '.community-row{display:flex;gap:8px;align-items:center}',
+      /* layout + type */
+      '.community-box{font-family:system-ui,Segoe UI,Roboto,Arial;max-width:920px;margin:0 auto;padding:8px 16px}',
+      '.community-row{display:flex;gap:12px;align-items:center}',
+      '.community-meta{color:#64748b;font-size:12px}',
+      'hr{border:0;height:1px;background:#f1f5f9;margin:14px 0}',
 
-      /* inputs */
-      '.community-input,.community-textarea{flex:1 1 auto;padding:10px 12px;border:1px solid #dfe3e8;border-radius:10px;min-width:0;background:#fff;transition:border-color .15s,box-shadow .15s}',
-      '.community-input:focus,.community-textarea:focus{outline:0;border-color:#0a66c2;box-shadow:0 0 0 3px rgba(10,102,194,.12)}',
+      /* inputs / textareas */
+      '.community-input,.community-textarea{flex:1 1 auto;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;min-width:0;outline:none;transition:border-color .15s ease,box-shadow .15s ease}',
+      '.community-input:focus,.community-textarea:focus{border-color:#0a66c2;box-shadow:0 0 0 3px rgba(10,102,194,.12)}',
       '.community-textarea{width:100%;resize:vertical}',
 
       /* buttons */
-      '.community-btn{padding:8px 12px;border:1px solid #dfe3e8;border-radius:10px;background:#fff;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s,transform .05s}',
-      '.community-btn:hover{background:#f8fafc}',
+      '.community-btn{padding:8px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;cursor:pointer;font-weight:600;line-height:1.1;transition:background .15s ease,color .15s ease,border-color .15s ease,box-shadow .15s ease}',
+      '.community-btn:hover{background:#0a66c2;color:#fff;border-color:#0a66c2}',
       '.community-btn:active{transform:translateY(1px)}',
 
-      /* cards */
-      '.community-card{border:1px solid #eceff1;border-radius:14px;padding:14px;margin:12px 0;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04)}',
-      '.community-card:hover{box-shadow:0 6px 18px rgba(0,0,0,.06)}',
+      /* cards + chips */
+      '.community-card{border:1px solid #e5e7eb;border-radius:14px;padding:16px;margin:12px 0;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.05)}',
+      '.community-tag{display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:2px 10px;margin-right:6px;font-size:12px;color:#334155}',
+      '.badge{display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;padding:2px 8px;border-radius:999px;font-size:11px;color:#334155;margin-left:6px}',
 
-      /* tags, meta, badges */
-      '.community-tag{display:inline-block;background:#f5f7fa;border:1px solid #e7ebf0;border-radius:999px;padding:2px 8px;margin-right:6px;font-size:12px}',
-      '.community-meta{color:#6b7280;font-size:12px}',
-      '.badge{display:inline-block;background:#eef5ff;border:1px solid #d7e7ff;padding:2px 6px;border-radius:6px;font-size:11px;margin-left:6px}',
-
-      /* votes */
-      '.vote.voted{font-weight:700;color:#0a66c2}',
-
-      /* content areas */
-      '.thread-body,.comment-body{color:#111;word-wrap:break-word;overflow-wrap:anywhere}',
-      '.thread-body h1,.thread-body h2,.thread-body h3,.comment-body h1,.comment-body h2,.comment-body h3{margin:8px 0 6px;line-height:1.25}',
-      '.thread-body p,.comment-body p{margin:0 0 10px;line-height:1.55}',
-      '.thread-body ul,.comment-body ul{margin:0 0 10px 0;padding-left:22px}',
-      '.thread-body li,.comment-body li{margin:4px 0}',
+      /* vote chip */
+      '.vote{cursor:pointer;background:#fff;border:1px solid #e2e8f0;border-radius:999px;padding:6px 10px;line-height:1;font-weight:700;color:#334155}',
+      '.vote.voted{background:#0a66c2;border-color:#0a66c2;color:#fff}',
 
       /* reply form */
-      '.reply-form .community-textarea{min-height:60px}',
-      '.comment-actions{display:inline-flex;gap:6px;margin-left:8px}',
+      '.reply-form .community-textarea{min-height:64px}',
+      '.comment-actions{display:inline-flex;gap:8px;margin-left:8px}',
+      '.comment-actions .community-btn{padding:6px 10px;font-size:12px}',
 
-      /* typeahead */
-      '.s-item{padding:6px 8px;cursor:pointer;border-top:1px solid #eee}',
-      '.s-item:hover{background:#f6faff}',
+      /* suggest dropdown + notifications */
+      '#forum-suggest{position:absolute;top:34px;left:0;right:0;background:#fff;border:1px solid #e5e7eb;border-radius:10px;display:none;z-index:5;overflow:hidden;box-shadow:0 12px 24px rgba(0,0,0,.08)}',
+      '.s-item{padding:8px 10px;cursor:pointer;border-top:1px solid #f1f5f9}',
+      '.s-item:hover{background:#f8fafc}',
+      '#notif-panel{display:none;position:fixed;right:12px;top:90px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;width:380px;max-height:340px;overflow:auto;padding:10px;box-shadow:0 16px 40px rgba(0,0,0,.12);z-index:50}',
 
-      /* media + links */
-      '.thread-body img,.comment-body img{max-width:100%;height:auto;border-radius:8px;display:block;margin:8px 0}',
-      '.thread-body a,.comment-body a{color:#0a66c2;text-decoration:underline}',
-      
-      /* polls */
-      '.community-poll-card{background:#f9fafb}',
-      '.community-poll-option input{margin-right:6px}',
+      /* markdown inside posts/comments */
+      '.thread-body,.comment-body{color:#0f172a;font-size:15px;line-height:1.6}',
+      '.thread-body h1,.comment-body h1{font-size:22px;margin:12px 0 8px;line-height:1.3}',
+      '.thread-body h2,.comment-body h2{font-size:18px;margin:10px 0 6px;line-height:1.35}',
+      '.thread-body h3,.comment-body h3{font-size:16px;margin:8px 0 6px;line-height:1.4}',
+      '.thread-body p,.comment-body p{margin:8px 0}',
+      '.thread-body ul,.comment-body ul{margin:8px 0 8px 22px;padding:0;list-style:disc outside}',
+      '.thread-body li,.comment-body li{margin:6px 0}',
+      '.thread-body a,.comment-body a{color:#0a66c2;text-decoration:underline;word-break:break-word}',
+      '.thread-body img,.comment-body img{max-width:100%;height:auto;border-radius:8px;display:block;margin:10px 0}',
 
-      /* responsive */
+      /* per-card inputs so they don’t feel “stretchy” */
+      '.community-card .comment-input{min-width:180px}',
+
+      /* misc */
+      '.vote.voted{font-weight:700}',
       '@media (max-width:600px){.community-row{flex-wrap:wrap}.community-btn{width:auto}.community-input{min-width:180px}}'
     ].join('');
     var style = document.createElement('style');
@@ -257,7 +259,7 @@
       '  <div class="community-row" style="flex-wrap:wrap;gap:8px;align-items:center">',
       '    <div style="position:relative;flex:1">',
       '      <input id="forum-search" class="community-input" aria-label="Search" placeholder="Search titles, tags, categories…" style="min-width:220px;width:100%"/>',
-      '      <div id="forum-suggest" style="position:absolute;top:34px;left:0;right:0;background:#fff;border:1px solid #ddd;display:none;z-index:5"></div>',
+      '      <div id="forum-suggest"></div>',
       '    </div>',
       '    <select id="forum-sort" class="community-input" aria-label="Sort" style="width:auto">',
       '      <option value="">New</option>',
@@ -274,7 +276,7 @@
       '    <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto"/>',
       '    <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
       '    <button id="notif-btn" class="community-btn" type="button" style="position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
-      '    <div id="notif-panel" style="display:none;position:fixed;right:12px;top:90px;background:#fff;border:1px solid #ddd;border-radius:10px;width:380px;max-height:320px;overflow:auto;padding:8px;box-shadow:0 8px 20px rgba(0,0,0,.08);z-index:50"></div>',
+      '    <div id="notif-panel"></div>',
       '  </div>',
       '  <div class="community-row" style="margin-top:8px">',
       '    <select id="cat-filter" class="community-input" aria-label="Category filter"></select>',
@@ -374,12 +376,12 @@
       return [
         '<div class="community-card" role="listitem">',
         '  <div style="display:flex;justify-content:space-between;align-items:center">',
-        '    <div><strong>' + escapeHtml(t.title) + '</strong> ' + pinnedBadge + ' ' + closedBadge + '</div>',
-        '    <button class="vote" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0" style="cursor:pointer;background:none;border:none">▲ ' + votes + '</button>',
+        '    <div><strong style="font-size:18px;color:#0f172a">' + escapeHtml(t.title) + '</strong> ' + pinnedBadge + ' ' + closedBadge + '</div>',
+        '    <button class="vote" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0">▲ ' + votes + '</button>',
         '  </div>',
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
         '  <div class="thread-body">' + renderMarkdown(t.body || '') + '</div>',
-        '  <div style="margin:6px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
+        '  <div style="margin:8px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
         threadActionsHTML(t, cid),
         '  <div id="poll-' + t._id + '" class="community-poll" style="margin:8px 0"></div>',
         '  <div id="comments-' + t._id + '"></div>',
@@ -403,11 +405,11 @@
       if (canDel) {
         selfActions += '<button class="community-btn c-delete" data-id="' + c._id + '">Delete</button>';
       }
-      var replyBtn = '<button class="reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '" style="margin-left:6px">Reply</button>';
+      var replyBtn = '<button class="community-btn reply-btn" data-cid="' + c._id + '" data-depth="' + (c.depth || 0) + '" style="padding:6px 10px;font-size:12px">Reply</button>';
       var self =
         '<div class="community-comment" ' + pad + '>' +
-        '<button class="vote" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="cursor:pointer;background:none;border:none;margin-right:6px">▲ ' + votes + '</button>' +
-        '<b>' + safeName + '</b>: <span class="comment-body">' + renderMarkdown(c.body || '') + '</span>' +
+        '<button class="vote" aria-label="Upvote comment" aria-pressed="false" data-type="comment" data-id="' + c._id + '" data-voted="0" style="margin-right:6px">▲ ' + votes + '</button>' +
+        '<b style="color:#0f172a">' + safeName + '</b>: <span class="comment-body">' + renderMarkdown(c.body || '') + '</span>' +
         ' <span class="comment-actions">' + replyBtn + ' ' + selfActions + '</span>' +
         '</div>';
       var kids = (c.children || []).map(function (k) { return one(k, depth + 1); }).join('');
@@ -756,7 +758,7 @@
     var box = qs('#forum-suggest', root);
     function hide() { box.style.display = 'none'; box.innerHTML = ''; }
     function show(html) { box.innerHTML = html; box.style.display = html ? 'block' : 'none'; }
-    function row(html) { return '<div class="s-item" style="padding:6px 8px;cursor:pointer;border-top:1px solid #eee">' + html + '</div>'; }
+    function row(html) { return '<div class="s-item">' + html + '</div>'; }
 
     var doSuggest = debounce(function () {
       var q = input.value.trim(); if (!q) { hide(); return; }
@@ -766,9 +768,9 @@
         var tags = (data.tags || []).map(function (t) { return row('#' + escapeHtml(t)); }).join('');
         var cats = (data.categories || []).map(function (c) { return row('📂 ' + escapeHtml(c.name) + ' (' + escapeHtml(c.slug) + ')'); }).join('');
         var content = '';
-        if (titles) content += '<div style="padding:6px 8px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Titles</div>' + titles;
-        if (tags) content += '<div style="padding:6px 8px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Tags</div>' + tags;
-        if (cats) content += '<div style="padding:6px 8px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Categories</div>' + cats;
+        if (titles) content += '<div style="padding:8px 10px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Titles</div>' + titles;
+        if (tags) content += '<div style="padding:8px 10px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Tags</div>' + tags;
+        if (cats) content += '<div style="padding:8px 10px;font-weight:600;background:#fafafa;border-bottom:1px solid #eee">Categories</div>' + cats;
         show(content || '');
       }).catch(function () { hide(); });
     }, 150);
