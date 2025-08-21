@@ -866,6 +866,7 @@ router.get('/polls', async (_req, res, next) => {
       `
 <div class="card">
   <h2>Polls</h2>
+  <p>Use shop domain : 4amjw1-pc.myshopify.com</p>
   <form class="row mt12" action="/admin/polls/create" method="post">
     <input class="input" name="shop" placeholder="shop domain" required />
     <input class="input" name="threadId" placeholder="threadId" />
@@ -952,6 +953,7 @@ router.get('/announce', (req, res) => {
   res.send(shell('Announcement', `
 <div class="card">
   <h1>Send Announcement</h1>
+  <p>Use shop domain : 4amjw1-pc.myshopify.com</p>
   <form method="post" action="/admin/announce" style="display:grid;gap:12px;max-width:520px">
     <label>Shop<br><input class="input" name="shop" value="${shop}" required style="width:100%"></label>
     <label>Message<br><textarea class="input" name="message" rows="4" required style="width:100%"></textarea></label>
@@ -1024,7 +1026,7 @@ router.get('/exports', (req, res) => {
   res.type('html').send(shell('CSV Exports', `
 <div class="card">
   <h1>CSV Exports</h1>
-
+  <p>Use shop domain : 4amjw1-pc.myshopify.com</p>
   <form id="xform" style="display:grid;gap:10px;max-width:520px">
     <label>Shop (optional)
       <input class="input" name="shop" value="${shop}" placeholder="your-shop.myshopify.com">
