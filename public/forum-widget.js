@@ -375,7 +375,7 @@
         '  <summary><span class="summary-pill">💬 Comments</span></summary>',
         '  <div id="comments-' + t._id + '"></div>',
         '  <div class="community-row" style="margin-top:8px">',
-        isClosed || t.locked
+        (isClosed || t.locked)
           ? '<div class="community-meta">Thread is ' + (isClosed ? 'closed' : 'locked') + ' — new replies are disabled.</div>'
           : [
             '  <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..." aria-label="Write a comment"/>',
@@ -396,12 +396,17 @@
         '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
         '  <div class="thread-body">' + renderMarkdown(t.body || '') + '</div>',
         '  <div style="margin:6px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">#' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
+
+        // ⬇️ ADD THIS PLACEHOLDER (so loadPoll has a target)
+        '  <div id="poll-' + t._id + '" class="poll-wrap" style="margin:8px 0"></div>',
+
         threadActionsHTML(t, cid),
         commentAccordion,
         '</div>'
       ].join('');
     }).join(''));
   }
+
 
   /* ---------- comments (with reply dropdowns) ---------- */
   function renderCommentTree(list, cid) {
@@ -733,6 +738,9 @@
         renderThreads(container, items, cid);
         // Comments now lazy-loaded when each accordion is opened
         wireThreadActions(container, cid, SHOP);
+
+        // ⬇️ ADD THIS so polls load immediately
+        items.forEach(function (t) { loadPoll(t._id, SHOP, cid); });
 
         container.__state.next = data.next || null;
         var btn = qs('#load-more', root);
