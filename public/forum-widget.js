@@ -1282,8 +1282,10 @@
         // Search, categories, highlights, spotlight
         wireSuggest(root, SHOP, loadNow);
         loadCategories(sel, tMsg, SHOP).then(function () { return loadNow(); });
-        var topCats = qs('#top-cats', root);
-        if (topCats) topCats.addEventListener('topic-change', function () { loadNow(); });
+
+        // Listen where the event actually bubbles to
+        root.addEventListener('topic-change', function () { loadNow(); });
+
 
         loadHighlights();
         loadSpotlight(cid);
