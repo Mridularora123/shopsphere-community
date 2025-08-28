@@ -467,8 +467,8 @@
       '<div><b>' + body + '</b></div>' +
       (n.payload && n.payload.threads
         ? '<div class="community-meta">' +
-          (n.payload.threads || []).map(function (t) { return '• ' + escapeHtml(t.title) + ' (▲ ' + (t.votes || 0) + ')'; }).join('<br>') +
-          '</div>'
+        (n.payload.threads || []).map(function (t) { return '• ' + escapeHtml(t.title) + ' (▲ ' + (t.votes || 0) + ')'; }).join('<br>') +
+        '</div>'
         : '') +
       '<div class="community-meta">' + when + '</div>' +
       '</li>';
@@ -916,19 +916,35 @@
         var wrap = qs('#top-cats');
         if (wrap) {
           wrap.innerHTML = renderTopCategoryCards(items);
+
           wrap.addEventListener('click', function (e) {
             var card = e.target.closest('.cat-item'); if (!card) return;
+
+            // 1) set the hidden select (used by getControls)
             sel.value = card.getAttribute('data-id') || '';
+
+            // 2) visual active state
             wrap.querySelectorAll('.cat-item').forEach(function (x) { x.classList.remove('active'); });
             card.classList.add('active');
-            wrap.dispatchEvent(new CustomEvent('topic-change', { bubbles: true }));
+
+            // 3) FIRE the event where the listener actually is (#topic-list)
+            var topicList = qs('#topic-list');
+            if (topicList) {
+              topicList.dispatchEvent(new CustomEvent('topic-change', { bubbles: true }));
+            }
           });
+
+          // keyboard support
           wrap.addEventListener('keydown', function (e) {
-            if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('cat-item')) {
-              e.preventDefault(); e.target.click();
+            var el = e.target.closest('.cat-item');
+            if (!el) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              el.click();
             }
           });
         }
+
 
         // "See more" helper
         var more = qs('#cats-more');
