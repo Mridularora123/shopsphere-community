@@ -44,34 +44,44 @@
 
       // infer accent from links
       var a = document.createElement('a'); a.style.display = 'none'; a.href = '#'; document.body.appendChild(a);
-      var accent = getComputedStyle(a).color || '#ff7a59';
+      var accent = getComputedStyle(a).color || '#7c3aed';
       document.body.removeChild(a);
 
       // meta overrides
       var mAccent = document.querySelector('meta[name="forum-accent"]');
+      var mAccent2 = document.querySelector('meta[name="forum-accent-2"]');
       var mRadius = document.querySelector('meta[name="forum-radius"]');
 
       root.style.setProperty('--c-text', fg);
       root.style.setProperty('--c-bg', '#ffffff');
       root.style.setProperty('--c-page', bg);
       root.style.setProperty('--c-accent', (mAccent && mAccent.content) || accent);
+      root.style.setProperty('--c-accent-2', (mAccent2 && mAccent2.content) || '#a855f7');
       if (mRadius && mRadius.content) root.style.setProperty('--radius', mRadius.content);
     } catch (_) { /* ignore */ }
   }
 
-  /* ---------- modern styles (Coda-like layout & Mosaic branding) ---------- */
+  /* ---------- modern styles (Mosaic-aligned: Fraunces + DM Sans, pill buttons) ---------- */
   function injectStyles() {
     if (document.getElementById('community-style')) return;
-    var css = [
-      ':root{--c-bg:#fff;--c-page:#faf7f2;--c-soft:#f6f7f9;--c-soft2:#f0f2f5;--c-border:#e5e7eb;--c-text:#111827;--c-mut:#6b7280;--c-accent:#ff7a59;--c-accent-2:#0a66c2;--radius:12px;--shadow:0 1px 2px rgba(0,0,0,.06),0 6px 16px rgba(0,0,0,.06)}',
 
-      /* Container & page bg */
-      '.community-box{font-family:inherit;max-width:1100px;margin:0 auto;padding:12px}',
+    // Load fonts once
+    loadCss('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:wght@600;700;800;900&display=swap');
+
+    var css = [
+      ':root{--c-bg:#fff;--c-page:#faf7f2;--c-soft:#f6f7f9;--c-soft2:#f0f2f5;--c-border:#e5e7eb;--c-text:#111827;--c-mut:#6b7280;--c-accent:#7c3aed;--c-accent-2:#a855f7;--radius:16px;--shadow:0 1px 2px rgba(0,0,0,.06),0 6px 16px rgba(0,0,0,.06)}',
+
+      /* Global typography */
+      '.community-scope,.community-box,.community-card,.community-btn,.community-input,.community-textarea{font-family:"DM Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}',
+      '.hero-title,.section-head h3,.thread-title,.hl-title,.community-poll-card>div:first-child,.cat-name{font-family:"Fraunces",serif;letter-spacing:-.01em}',
       'body .community-scope{background:var(--c-page)}',
+
+      /* Container */
+      '.community-box{max-width:1100px;margin:0 auto;padding:12px}',
 
       /* Auth gate */
       '.auth-gate{display:flex;flex-direction:column;align-items:flex-start;gap:10px}',
-      '.auth-title{font-size:18px;font-weight:700;color:var(--c-text)}',
+      '.auth-title{font-size:20px;font-weight:800;color:var(--c-text)}',
       '.auth-desc{color:var(--c-mut);margin:0}',
       '.auth-features{margin:0 0 4px 18px;color:var(--c-text)}',
       '.auth-features li{margin:2px 0}',
@@ -79,46 +89,50 @@
 
       /* Hero */
       '.community-hero{padding:28px 14px 16px;border-radius:var(--radius);background:var(--c-page)}',
-      '.hero-title{font-weight:800;font-size:34px;line-height:1.1;margin:0;color:var(--c-text)}',
+      '.hero-title{font-weight:900;font-size:36px;line-height:1.05;margin:0;color:var(--c-text)}',
       '.hero-sub{margin:8px 0 14px 0;color:var(--c-mut)}',
       '.hero-search{position:relative}',
-      '.hero-search input{width:100%;padding:14px 44px 14px 44px;border:1px solid var(--c-border);border-radius:999px;background:#fff}',
+      '.hero-search input{width:100%;padding:14px 44px;border:1px solid var(--c-border);border-radius:999px;background:#fff}',
       '.search-ico{position:absolute;left:14px;top:50%;transform:translateY(-50%);pointer-events:none}',
 
       /* Section heads */
       '.section-head{display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px 0}',
-      '.section-head h3{margin:0;font-size:16px;font-weight:700;color:var(--c-text)}',
+      '.section-head h3{margin:0;font-size:18px;font-weight:800;color:var(--c-text)}',
       '.see-more{font-size:13px;color:var(--c-accent-2);text-decoration:underline;cursor:pointer}',
 
       /* Grid: Top Categories + Highlights */
       '.dash{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}',
       '.card{background:#fff;border:1px solid var(--c-border);border-radius:var(--radius);box-shadow:var(--shadow)}',
       '.card-pad{padding:10px}',
+
+      /* Category cards (like screenshot: colored rail + icon chip) */
       '.cat-grid{display:flex;flex-direction:column;gap:10px;position:relative;z-index:2}',
-      '.cat-item{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--c-border);border-radius:12px;background:#fff;cursor:pointer}',
-      '.cat-item:hover{box-shadow:0 0 0 3px rgba(0,0,0,.04)}',
-      '.cat-item.active{box-shadow:0 0 0 3px rgba(255,122,89,.25);border-color:var(--c-accent)}',
-      '.cat-icon{width:26px;height:26px;border-radius:8px;background:var(--c-soft)}',
-      '.cat-name{font-weight:600}',
+      '.cat-item{position:relative;display:flex;align-items:center;gap:12px;padding:12px 12px 12px 16px;border:1px solid var(--c-border);border-radius:12px;background:#fff;cursor:pointer;transition:box-shadow .15s,border-color .15s}',
+      '.cat-item::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;border-radius:12px 0 0 12px;background:var(--cat-color,var(--c-accent))}',
+      '.cat-item:hover{box-shadow:0 0 0 4px rgba(0,0,0,.04)}',
+      '.cat-item.active{box-shadow:0 0 0 5px color-mix(in oklab,var(--cat-color, var(--c-accent)) 22%,#0000);border-color:var(--cat-color,var(--c-accent))}',
+      '.cat-icon{width:28px;height:28px;border-radius:8px;background:var(--cat-color,var(--c-accent));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;line-height:1}',
+      '.cat-name{font-weight:800}',
       '.cat-meta{color:var(--c-mut);font-size:12px}',
 
+      /* Highlights */
       '.hl-list{display:flex;flex-direction:column;gap:10px}',
       '.hl-item{padding:12px;border:1px solid var(--c-border);border-radius:12px;background:#fff}',
-      '.hl-title{font-weight:600}',
+      '.hl-title{font-weight:700}',
       '.hl-meta{color:var(--c-mut);font-size:12px;margin-top:2px}',
 
-      /* Controls row (tabs + filters + bell) */
+      /* Controls (tabs + filters + bell) */
       '.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0;position:relative}',
       '.tabbar{display:flex;gap:6px;background:#fff;border:1px solid var(--c-border);border-radius:999px;padding:3px}',
-      '.tab{padding:7px 12px;border-radius:999px;cursor:pointer;color:var(--c-text)}',
-      '.tab.active{background:var(--c-accent);color:#fff}',
+      '.tab{padding:8px 13px;border-radius:999px;cursor:pointer;color:var(--c-text);font-weight:600}',
+      '.tab.active{background:linear-gradient(90deg,var(--c-accent),var(--c-accent-2));color:#fff;border:1px solid transparent}',
 
-      '.community-input,.community-textarea{flex:1 1 auto;padding:10px 12px;border:1px solid var(--c-border);border-radius:10px;background:#fff;min-width:0}',
+      '.community-input,.community-textarea{flex:1 1 auto;padding:11px 12px;border:1px solid var(--c-border);border-radius:12px;background:#fff;min-width:0}',
       '.community-textarea{width:100%}',
-      '.community-btn{color:#121212!important;padding:9px 12px;border:1px solid var(--c-border);border-radius:999px;background:#fff;cursor:pointer;line-height:1}',
-      '.community-btn:hover{box-shadow:0 0 0 3px rgba(0,0,0,.04)}',
-      '.primary{background:var(--c-accent);color:#fff;border-color:var(--c-accent)}',
-      '.primary:hover{box-shadow:0 0 0 4px rgba(255,122,89,.25)}',
+      '.community-btn{color:#111!important;padding:10px 14px;border:1px solid var(--c-border);border-radius:999px;background:#fff;cursor:pointer;line-height:1;font-weight:700}',
+      '.community-btn:hover{box-shadow:0 0 0 4px rgba(0,0,0,.04)}',
+      '.primary{background:linear-gradient(90deg,var(--c-accent),var(--c-accent-2));color:#fff;border-color:transparent}',
+      '.primary:hover{box-shadow:0 0 0 5px color-mix(in oklab,var(--c-accent) 25%,#0000)}',
       '.badge{display:inline-block;background:#eef;border:1px solid #dde;padding:2px 6px;border-radius:6px;font-size:11px;margin-left:6px}',
 
       /* Stream grid (list + rail) */
@@ -128,21 +142,21 @@
       /* Thread cards */
       '.community-card{background:#fff;border:1px solid var(--c-border);border-radius:var(--radius);padding:14px;margin:12px 0;box-shadow:var(--shadow)}',
       '.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}',
-      '.thread-title{font-weight:700;font-size:18px}',
+      '.thread-title{font-weight:800;font-size:19px}',
       '.community-tag{display:inline-block;background:var(--c-soft);border:1px solid var(--c-border);border-radius:999px;padding:2px 8px;margin-right:6px;font-size:12px}',
       '.community-meta{color:var(--c-mut);font-size:12px}',
       '.metrics{display:inline-flex;gap:10px;margin-top:6px;color:var(--c-mut);font-size:12px}',
       '.metric{display:inline-flex;align-items:center;gap:6px}',
 
-      '.vote{border:1px solid var(--c-border);background:#fff;border-radius:999px;padding:7px 10px;line-height:1;cursor:pointer;min-width:52px;display:inline-flex;align-items:center;justify-content:center;box-shadow:inset 0 -2px 0 rgba(0,0,0,.04)}',
-      '.vote:hover{box-shadow:0 0 0 3px rgba(10,102,194,.12)}',
-      '.vote.voted{font-weight:700;border-color:var(--c-accent);box-shadow:0 0 0 3px rgba(255,122,89,.18)}',
+      '.vote{border:1px solid var(--c-border);background:#fff;border-radius:999px;padding:7px 10px;line-height:1;cursor:pointer;min-width:52px;display:inline-flex;align-items:center;justify-content:center;box-shadow:inset 0 -2px 0 rgba(0,0,0,.04);font-weight:700}',
+      '.vote:hover{box-shadow:0 0 0 4px color-mix(in oklab,var(--c-accent-2) 18%,#0000)}',
+      '.vote.voted{border-color:var(--c-accent);box-shadow:0 0 0 4px color-mix(in oklab,var(--c-accent) 22%,#0000)}',
 
       '.thread-body,.comment-body{color:var(--c-text);font-size:15px;line-height:1.58;margin-top:6px}',
       '.thread-body img,.comment-body img{max-width:100%;height:auto;border-radius:8px;display:block;margin:10px 0}',
       '.thread-body a,.comment-body a{color:var(--c-accent-2);text-decoration:underline}',
 
-      /* reduce big default margins just inside our bodies */
+      /* reduced margins inside rendered bodies */
       '.thread-body h1,.comment-body h1{font-size:22px;margin:8px 0 6px 0}',
       '.thread-body h2,.comment-body h2{font-size:18px;margin:6px 0 4px 0}',
       '.thread-body ul,.comment-body ul{margin:6px 0 6px 18px}',
@@ -355,6 +369,23 @@
     return bar;
   }
 
+  /* ---------- Category helpers (color + icon matching your screenshot) ---------- */
+  var CAT_PALETTE = ['#2d6cdf','#f59e0b','#22c55e','#0ea5e9','#ef4444','#8b5cf6','#14b8a6','#eab308','#06b6d4','#f43f5e'];
+  function catColor(id, idx, name) {
+    // Named matches → fixed colors like screenshot
+    if (/ask|question|help|support/i.test(name)) return '#2d6cdf';
+    if (/news|update|announcement|coda/i.test(name)) return '#f59e0b';
+    if (/suggest|idea|feature|request/i.test(name)) return '#22c55e';
+    // otherwise palette by index
+    return CAT_PALETTE[(idx || 0) % CAT_PALETTE.length];
+  }
+  function catGlyph(name) {
+    if (/ask|question|help|support/i.test(name)) return '❓';
+    if (/news|update|announcement|coda/i.test(name)) return '📰';
+    if (/suggest|idea|feature|request/i.test(name)) return '✅';
+    return '📂';
+  }
+
   /* ---------- UI template (hero + sections + stream) ---------- */
   function template(root) {
     injectStyles();
@@ -364,7 +395,7 @@
 
       // HERO
       '  <header class="community-hero">',
-      '    <h1 class="hero-title" id="community-title">Coda Community</h1>',
+      '    <h1 class="hero-title" id="community-title">Community</h1>',
       '    <p class="hero-sub" id="community-subtitle">We’re happy to have you here. If you need help, please search before you post.</p>',
       '    <div class="hero-search">',
       '      <span class="search-ico">🔎</span>',
@@ -884,24 +915,26 @@
 
   function renderTopCategoryCards(items) {
     if (!items.length) return '<div class="community-meta">No categories yet</div>';
-    return items.map(function (c) {
+    return items.map(function (c, idx) {
       var id = c._id || c.id || c.slug || '';
       var count = c.threadCount || c.postCount || c.count || '';
       var meta = count ? ('<span class="cat-meta">' + count + ' posts</span>') : '';
+      var color = catColor(id, idx, c.name || '');
+      var glyph = catGlyph(c.name || '');
       return [
-        '<div class="cat-item" role="button" tabindex="0" data-id="' + id + '">',
-        '  <div class="cat-icon" aria-hidden="true"></div>',
+        '<div class="cat-item" role="button" tabindex="0" data-id="' + id + '" style="--cat-color:' + color + '">',
+        '  <div class="cat-icon" aria-hidden="true">' + escapeHtml(glyph) + '</div>',
         '  <div><div class="cat-name">' + escapeHtml(c.name) + '</div>' + meta + '</div>',
         '</div>'
       ].join('');
     }).join('');
   }
 
-
   function loadCategories(sel, tMsg, SHOP) {
     return api('/categories', { qs: { shop: SHOP } })
       .then(function (data) {
         var items = data.items || [];
+
         // native select
         var opts = ['<option value="">All categories</option>'].concat(items.map(function (c) {
           return '<option value="' + c._id + '">' + escapeHtml(c.name) + '</option>';
@@ -912,7 +945,7 @@
         var list = qs('#topic-list');
         if (list) list.innerHTML = renderTopicList(items);
 
-        // Render Top Categories cards
+        // Render Top Categories cards with "See more" toggle
         var wrap = qs('#top-cats');
         if (wrap) {
           var collapsed = true;
@@ -922,7 +955,6 @@
           }
           drawCats();
 
-          // delegated click stays the same
           wrap.addEventListener('click', function (e) {
             var card = e.target.closest('.cat-item'); if (!card) return;
             sel.value = card.getAttribute('data-id') || '';
@@ -951,14 +983,6 @@
             }
           }
         }
-
-
-
-        // "See more" helper
-        var more = qs('#cats-more');
-        if (more) more.addEventListener('click', function () {
-          alert('Use the filters below or click a category card to narrow posts.');
-        });
       })
       .catch(function (e) { setMsg(tMsg, 'Could not load categories: ' + e.message, true); });
   }
@@ -979,7 +1003,7 @@
     if (!box) return;
     box.innerHTML = '<div class="community-meta">Loading…</div>';
 
-    // Try "top" threads for the week (Coda-like "Maker Highlights")
+    // Try "top" threads for the week (highlight)
     return api('/threads', { qs: { sort: 'top', period: 'week', limit: 3 } })
       .then(function (res) {
         var items = (res && res.items) || [];
@@ -1023,9 +1047,9 @@
   /* ---------- controls + threads ---------- */
   function getControls(root) {
     var sort = '';
-    if (qs('#tab-top', root)?.classList.contains('active')) sort = 'top';
-    else if (qs('#tab-hot', root)?.classList.contains('active')) sort = 'hot';
-    else if (qs('#tab-discussed', root)?.classList.contains('active')) sort = 'discussed';
+    if (qs('#tab-top', root) && qs('#tab-top', root).classList.contains('active')) sort = 'top';
+    else if (qs('#tab-hot', root) && qs('#tab-hot', root).classList.contains('active')) sort = 'hot';
+    else if (qs('#tab-discussed', root) && qs('#tab-discussed', root).classList.contains('active')) sort = 'discussed';
     // else '' = Latest/New
 
     var isTop = sort === 'top';
@@ -1038,7 +1062,6 @@
       search: (qs('#forum-search', root).value || '').trim()
     };
   }
-
 
   function loadThreads(container, tMsg, cid, SHOP, root, opts) {
     opts = opts || {};
@@ -1270,7 +1293,7 @@
           return;
         }
 
-        // Tabs for Latest/Top
+        // Tabs for Latest/Top/Hot/Most Discussed
         var tabLatest = qs('#tab-latest', root);
         var tabTop = qs('#tab-top', root);
         var tabHot = qs('#tab-hot', root);
@@ -1306,6 +1329,7 @@
 
         qs('#forum-apply', root).addEventListener('click', function () { loadNow(); });
 
+        // Category select → reload threads (you asked where to add this)
         sel && sel.addEventListener('change', function () { loadNow(); });
 
         // Search, categories, highlights, spotlight
@@ -1314,7 +1338,6 @@
 
         // Listen where the event actually bubbles to
         root.addEventListener('topic-change', function () { loadNow(); });
-
 
         loadHighlights();
         loadSpotlight(cid);
