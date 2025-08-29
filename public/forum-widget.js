@@ -143,6 +143,8 @@
       '.community-card{background:#fff;border:1px solid var(--c-border);border-radius:var(--radius);padding:14px;margin:12px 0;box-shadow:var(--shadow)}',
       '.card-head{display:flex;justify-content:space-between;align-items:center;gap:10px}',
       '.thread-title{font-weight:400;font-size:19px}',
+      '.thread-body li{list-style: disc}',
+      'br{display:none}',
       '.community-tag{display:inline-block;background:var(--c-soft);border:1px solid var(--c-border);border-radius:999px;padding:2px 8px;margin-right:6px;font-size:12px}',
       '.community-meta{color:var(--c-mut);font-size:12px}',
       '.metrics{display:inline-flex;gap:10px;margin-top:6px;color:var(--c-mut);font-size:12px}',
