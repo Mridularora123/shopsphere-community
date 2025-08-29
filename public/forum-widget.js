@@ -94,7 +94,7 @@
       '.dash{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}',
       '.card{background:#fff;border:1px solid var(--c-border);border-radius:var(--radius);box-shadow:var(--shadow)}',
       '.card-pad{padding:10px}',
-      '.cat-grid{display:flex;flex-direction:column;gap:10px}',
+      '.cat-grid{display:flex;flex-direction:column;gap:10px;position:relative;z-index:2}',
       '.cat-item{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--c-border);border-radius:12px;background:#fff;cursor:pointer}',
       '.cat-item:hover{box-shadow:0 0 0 3px rgba(0,0,0,.04)}',
       '.cat-item.active{box-shadow:0 0 0 3px rgba(255,122,89,.25);border-color:var(--c-accent)}',
