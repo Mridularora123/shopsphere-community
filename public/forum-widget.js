@@ -398,6 +398,8 @@
       '    <div class="tabbar" role="tablist" aria-label="Sort tabs">',
       '      <button id="tab-latest" class="tab active" role="tab" aria-selected="true">Latest</button>',
       '      <button id="tab-top" class="tab" role="tab" aria-selected="false">Top</button>',
+      '      <button id="tab-hot" class="tab" role="tab" aria-selected="false">Hot</button>',
+      '      <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
       '    </div>',
       '    <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
       '      <option value="day">Day</option>',
@@ -1020,16 +1022,23 @@
 
   /* ---------- controls + threads ---------- */
   function getControls(root) {
-    var topActive = !!(qs('#tab-top', root) && qs('#tab-top', root).classList.contains('active'));
+    var sort = '';
+    if (qs('#tab-top', root)?.classList.contains('active')) sort = 'top';
+    else if (qs('#tab-hot', root)?.classList.contains('active')) sort = 'hot';
+    else if (qs('#tab-discussed', root)?.classList.contains('active')) sort = 'discussed';
+    // else '' = Latest/New
+
+    var isTop = sort === 'top';
     return {
       category: (qs('#cat-filter', root).value || ''),
-      sort: topActive ? 'top' : '',
-      period: topActive ? (qs('#forum-period', root).value || '') : '',
+      sort: sort,
+      period: isTop ? (qs('#forum-period', root).value || '') : '',
       from: (qs('#forum-from', root).value || ''),
       to: (qs('#forum-to', root).value || ''),
       search: (qs('#forum-search', root).value || '').trim()
     };
   }
+
 
   function loadThreads(container, tMsg, cid, SHOP, root, opts) {
     opts = opts || {};
@@ -1264,37 +1273,40 @@
         // Tabs for Latest/Top
         var tabLatest = qs('#tab-latest', root);
         var tabTop = qs('#tab-top', root);
+        var tabHot = qs('#tab-hot', root);
+        var tabDiscussed = qs('#tab-discussed', root);
         var periodSel = qs('#forum-period', root);
 
-        function setTab(isTop) {
-          if (isTop) {
-            tabTop.classList.add('active'); tabTop.setAttribute('aria-selected', 'true');
-            tabLatest.classList.remove('active'); tabLatest.setAttribute('aria-selected', 'false');
-            periodSel.style.display = 'inline-block';
-          } else {
-            tabLatest.classList.add('active'); tabLatest.setAttribute('aria-selected', 'true');
-            tabTop.classList.remove('active'); tabTop.setAttribute('aria-selected', 'false');
-            periodSel.style.display = 'none';
-          }
+        function setTab(which) { // 'latest' | 'top' | 'hot' | 'discussed'
+          ['latest', 'top', 'hot', 'discussed'].forEach(function (k) {
+            var b = qs('#tab-' + k, root);
+            if (!b) return;
+            var on = (k === which);
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          periodSel.style.display = (which === 'top') ? 'inline-block' : 'none';
           loadNow();
         }
+
+        tabLatest && tabLatest.addEventListener('click', function () { setTab('latest'); });
+        tabTop && tabTop.addEventListener('click', function () { setTab('top'); });
+        tabHot && tabHot.addEventListener('click', function () { setTab('hot'); });
+        tabDiscussed && tabDiscussed.addEventListener('click', function () { setTab('discussed'); });
 
         var hlMore = qs('#hl-more', root);
         if (hlMore) {
           hlMore.addEventListener('click', function () {
-            setTab(true); // switch to Top
-            // ensure period is visible and defaulted (week is already defaulted in HTML)
+            setTab('top');
             var list = qs('#threads', root);
             if (list) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
           });
         }
-
-
-        tabLatest && tabLatest.addEventListener('click', function () { setTab(false); });
-        tabTop && tabTop.addEventListener('click', function () { setTab(true); });
         periodSel && periodSel.addEventListener('change', function () { loadNow(); });
 
         qs('#forum-apply', root).addEventListener('click', function () { loadNow(); });
+
+        sel && sel.addEventListener('change', function () { loadNow(); });
 
         // Search, categories, highlights, spotlight
         wireSuggest(root, SHOP, loadNow);
