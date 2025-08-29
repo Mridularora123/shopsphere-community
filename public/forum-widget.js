@@ -159,7 +159,7 @@
       '.thread-body a,.comment-body a{color:var(--c-accent-2);text-decoration:underline}',
 
       /* reduced margins inside rendered bodies */
-      '.thread-body h1,.comment-body h1{font-size:22px;margin:8px 0 6px 0}',
+      '.thread-body h1,.comment-body h1{font-family: "Fraunces", serif;font-size:22px;margin:8px 0 6px 0}',
       '.thread-body h2,.comment-body h2{font-size:18px;margin:6px 0 4px 0}',
       '.thread-body ul,.comment-body ul{margin:6px 0 6px 18px}',
       '.reply-form .community-textarea{min-height:60px}',
