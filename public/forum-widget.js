@@ -881,22 +881,20 @@
   }
 
   function renderTopCategoryCards(items) {
-    items = (items || []).slice(0, 3);
     if (!items.length) return '<div class="community-meta">No categories yet</div>';
     return items.map(function (c) {
+      var id = c._id || c.id || c.slug || '';
       var count = c.threadCount || c.postCount || c.count || '';
       var meta = count ? ('<span class="cat-meta">' + count + ' posts</span>') : '';
       return [
-        '<div class="cat-item" role="button" tabindex="0" data-id="' + c._id + '">',
+        '<div class="cat-item" role="button" tabindex="0" data-id="' + id + '">',
         '  <div class="cat-icon" aria-hidden="true"></div>',
-        '  <div>',
-        '    <div class="cat-name">' + escapeHtml(c.name) + '</div>',
-        '    ' + meta,
-        '  </div>',
+        '  <div><div class="cat-name">' + escapeHtml(c.name) + '</div>' + meta + '</div>',
         '</div>'
       ].join('');
     }).join('');
   }
+
 
   function loadCategories(sel, tMsg, SHOP) {
     return api('/categories', { qs: { shop: SHOP } })
@@ -915,35 +913,43 @@
         // Render Top Categories cards
         var wrap = qs('#top-cats');
         if (wrap) {
-          wrap.innerHTML = renderTopCategoryCards(items);
+          var collapsed = true;
+          function drawCats() {
+            var subset = collapsed ? items.slice(0, 3) : items;
+            wrap.innerHTML = renderTopCategoryCards(subset);
+          }
+          drawCats();
 
+          // delegated click stays the same
           wrap.addEventListener('click', function (e) {
             var card = e.target.closest('.cat-item'); if (!card) return;
-
-            // 1) set the hidden select (used by getControls)
             sel.value = card.getAttribute('data-id') || '';
-
-            // 2) visual active state
             wrap.querySelectorAll('.cat-item').forEach(function (x) { x.classList.remove('active'); });
             card.classList.add('active');
-
-            // 3) FIRE the event where the listener actually is (#topic-list)
+            // trigger both events so threads reload
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
             var topicList = qs('#topic-list');
-            if (topicList) {
-              topicList.dispatchEvent(new CustomEvent('topic-change', { bubbles: true }));
-            }
+            if (topicList) topicList.dispatchEvent(new CustomEvent('topic-change', { bubbles: true }));
           });
 
-          // keyboard support
           wrap.addEventListener('keydown', function (e) {
-            var el = e.target.closest('.cat-item');
-            if (!el) return;
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              el.click();
-            }
+            var el = e.target.closest('.cat-item'); if (!el) return;
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
           });
+
+          var more = qs('#cats-more');
+          if (more) {
+            if (items.length <= 3) { more.style.visibility = 'hidden'; }
+            else {
+              more.addEventListener('click', function () {
+                collapsed = !collapsed;
+                drawCats();
+                more.textContent = collapsed ? 'See more' : 'See less';
+              });
+            }
+          }
         }
+
 
 
         // "See more" helper
@@ -1272,6 +1278,17 @@
           }
           loadNow();
         }
+
+        var hlMore = qs('#hl-more', root);
+        if (hlMore) {
+          hlMore.addEventListener('click', function () {
+            setTab(true); // switch to Top
+            // ensure period is visible and defaulted (week is already defaulted in HTML)
+            var list = qs('#threads', root);
+            if (list) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }
+
 
         tabLatest && tabLatest.addEventListener('click', function () { setTab(false); });
         tabTop && tabTop.addEventListener('click', function () { setTab(true); });
