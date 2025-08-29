@@ -884,10 +884,11 @@
     items = (items || []).slice(0, 3);
     if (!items.length) return '<div class="community-meta">No categories yet</div>';
     return items.map(function (c) {
-      var count = c.threadCount || c.postCount || c.count || '';
+      var id = c._id || c.id || c.slug || '';
+      var count = c.threadCount ?? c.postCount ?? c.count ?? c.threads ?? '';
       var meta = count ? ('<span class="cat-meta">' + count + ' posts</span>') : '';
       return [
-        '<div class="cat-item" role="button" tabindex="0" data-id="' + c._id + '">',
+        '<div class="cat-item" role="button" tabindex="0" data-id="' + id + '">',
         '  <div class="cat-icon" aria-hidden="true"></div>',
         '  <div>',
         '    <div class="cat-name">' + escapeHtml(c.name) + '</div>',
@@ -904,8 +905,10 @@
         var items = data.items || [];
         // native select
         var opts = ['<option value="">All categories</option>'].concat(items.map(function (c) {
-          return '<option value="' + c._id + '">' + escapeHtml(c.name) + '</option>';
+          var id = c._id || c.id || c.slug || '';
+          return '<option value="' + id + '">' + escapeHtml(c.name) + '</option>';
         })).join('');
+
         sel.innerHTML = opts;
 
         // hidden topic list for plumbing
@@ -922,16 +925,13 @@
 
             // 1) set the hidden select (used by getControls)
             sel.value = card.getAttribute('data-id') || '';
-
-            // 2) visual active state
             wrap.querySelectorAll('.cat-item').forEach(function (x) { x.classList.remove('active'); });
             card.classList.add('active');
 
-            // 3) FIRE the event where the listener actually is (#topic-list)
+            // trigger both, for robustness
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
             var topicList = qs('#topic-list');
-            if (topicList) {
-              topicList.dispatchEvent(new CustomEvent('topic-change', { bubbles: true }));
-            }
+            if (topicList) topicList.dispatchEvent(new CustomEvent('topic-change', { bubbles: true }));
           });
 
           // keyboard support
@@ -1036,7 +1036,17 @@
 
     var ctl = getControls(root);
     var params = {};
-    if (ctl.category) params.categoryId = ctl.category;
+    if (ctl.category) {
+      // 24-hex? treat as Mongo-style ID; otherwise assume slug
+      if (/^[a-f0-9]{24}$/i.test(ctl.category)) {
+        params.categoryId = ctl.category;
+      } else {
+        params.categorySlug = ctl.category;
+      }
+      // backward-compat for older handlers
+      params.category = ctl.category;
+    }
+
     if (ctl.search) params.q = ctl.search;
     if (ctl.sort) params.sort = ctl.sort;
     if (ctl.sort === 'top' && ctl.period) params.period = ctl.period;
@@ -1247,6 +1257,8 @@
       var sel = qs('#cat-filter', root);
       var list = qs('#threads', root);
       var loadNow = function (opts) { return loadThreads(list, tMsg, cid, SHOP, root, Object.assign({ reset: true }, opts || {})); };
+
+      sel && sel.addEventListener('change', function () { loadNow(); });
 
       pingProxy().then(function (res) {
         if (!res.ok) {
