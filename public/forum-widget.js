@@ -77,7 +77,7 @@
       'body .community-scope{background:var(--c-page)}',
 
       /* Container */
-      '.community-box{max-width:1100px;margin:0 auto;padding:12px}',
+      '.community-box{max-width:1250px;margin:0 auto;padding:12px}',
 
       /* Auth gate */
       '.auth-gate{display:flex;flex-direction:column;align-items:flex-start;gap:10px}',
@@ -89,7 +89,7 @@
 
       /* Hero */
       '.community-hero{padding:28px 14px 16px;border-radius:var(--radius);background:var(--c-page)}',
-      '.hero-title{font-weight:900;font-size:36px;line-height:1.05;margin:0;color:var(--c-text)}',
+      '.hero-title{font-weight:400;font-size:36px;line-height:1.05;margin:0;color:var(--c-text)}',
       '.hero-sub{margin:8px 0 14px 0;color:var(--c-mut)}',
       '.hero-search{position:relative}',
       '.hero-search input{width:100%;padding:14px 44px;border:1px solid var(--c-border);border-radius:999px;background:#fff}',
@@ -395,7 +395,7 @@
 
       // HERO
       '  <header class="community-hero">',
-      '    <h1 class="hero-title" id="community-title">Community</h1>',
+      '    <h1 class="hero-title" id="community-title">Coda Community</h1>',
       '    <p class="hero-sub" id="community-subtitle">We’re happy to have you here. If you need help, please search before you post.</p>',
       '    <div class="hero-search">',
       '      <span class="search-ico">🔎</span>',
