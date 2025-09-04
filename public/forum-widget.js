@@ -372,15 +372,13 @@
   }
 
   /* ---------- Category helpers (color + icon matching your screenshot) ---------- */
-  var CAT_PALETTE = ['#2d6cdf','#f59e0b','#22c55e','#0ea5e9','#ef4444','#8b5cf6','#14b8a6','#eab308','#06b6d4','#f43f5e'];
+  var CAT_PALETTE = ['#fa85b6', '#749dd3', '#66c08a'];
   function catColor(id, idx, name) {
-    // Named matches → fixed colors like screenshot
-    if (/ask|question|help|support/i.test(name)) return '#2d6cdf';
-    if (/news|update|announcement|coda/i.test(name)) return '#f59e0b';
-    if (/suggest|idea|feature|request/i.test(name)) return '#22c55e';
-    // otherwise palette by index
-    return CAT_PALETTE[(idx || 0) % CAT_PALETTE.length];
+    var s = String(id || name || '');
+    var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return CAT_PALETTE[h % CAT_PALETTE.length];
   }
+
   function catGlyph(name) {
     if (/ask|question|help|support/i.test(name)) return '❓';
     if (/news|update|announcement|coda/i.test(name)) return '📰';
