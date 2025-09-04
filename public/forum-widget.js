@@ -114,6 +114,10 @@
       '.cat-icon{width:28px;height:28px;border-radius:8px;background:var(--cat-color,var(--c-accent));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;line-height:1}',
       '.cat-name{font-weight:400}',
       '.cat-meta{color:var(--c-mut);font-size:12px}',
+      /* ensure the chosen color wins */
+      '.cat-grid .cat-item::before{background:var(--cat-color)!important;}',
+      '.cat-grid .cat-icon{background:var(--cat-color)!important;}',
+
 
       /* Highlights */
       '.hl-list{display:flex;flex-direction:column;gap:10px;position: relative;z-index:2}',
@@ -373,11 +377,14 @@
 
   /* ---------- Category helpers (color + icon matching your screenshot) ---------- */
   var CAT_PALETTE = ['#fa85b6', '#749dd3', '#66c08a'];
-  function catColor(id, idx, name) {
-    var s = String(id || name || '');
-    var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-    return CAT_PALETTE[h % CAT_PALETTE.length];
+
+  function catColor(_id, _idx, _name) {
+    if (!catColor._i && catColor._i !== 0) catColor._i = 0;
+    var color = CAT_PALETTE[catColor._i % CAT_PALETTE.length];
+    catColor._i++;
+    return color;
   }
+
 
   function catGlyph(name) {
     if (/ask|question|help|support/i.test(name)) return '❓';
