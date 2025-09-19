@@ -154,7 +154,7 @@
       '.metrics{display:inline-flex;gap:10px;margin-top:6px;color:var(--c-mut);font-size:12px}',
       '.metric{display:inline-flex;align-items:center;gap:6px}',
 
-      '.field{display:flex;flex-direction:column;gap:4px}',
+      '.field{display:flex;align-items:center;gap:4px;flex:1}',
       '.field.horizontal{flex-direction:row;align-items:center;gap:8px}',
       '.field .label{font-size:12px;color:var(--c-mut)}',
 
