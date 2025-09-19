@@ -851,15 +851,33 @@ router.get('/polls', async (_req, res, next) => {
     const items = await Poll.find({}).sort({ createdAt: -1 }).lean();
 
     const list = (items || [])
-      .map(
-        (p) => `<li class="item">
-  <b>${esc(p.question || '(no question)')}</b> · ${(p.options || []).length} options
-  <div class="row mt8">
-    <form action="/admin/polls/${p._id}/close" method="post"><button class="btn" type="submit">Close</button></form>
+      .map((p) => {
+        const opts =
+          (p.options || []).length
+            ? (p.options || [])
+              .map((o, i) => `<span class="badge">${esc(o.text || `Option ${i + 1}`)}</span>`)
+              .join(' ')
+            : '<span class="small">(no options)</span>';
+
+        return `<li class="item">
+  <div class="row" style="justify-content:space-between;align-items:flex-start">
+    <div>
+      <b>${esc(p.question || '(no question)')}</b>
+      · <span class="small">${(p.options || []).length} options</span>
+      ${p.status === 'closed' ? ' <span class="badge">closed</span>' : ''}
+      <div class="mt8">${opts}</div>
+      <div class="small mt8">${p._id}</div>
+    </div>
+    <div class="row">
+      <form action="/admin/polls/${p._id}/close" method="post">
+        <button class="btn" type="submit">Close</button>
+      </form>
+    </div>
   </div>
-</li>`
-      )
+</li>`;
+      })
       .join('');
+
 
     const fallback = shell(
       'Polls',
