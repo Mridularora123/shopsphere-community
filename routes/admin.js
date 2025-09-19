@@ -294,11 +294,22 @@ router.get('/', async (_req, res, next) => {
 });
 
 /* ------------------------------- Threads --------------------------------- */
-// List (default: pending)
+// List (default: pending) + Search (by title or exact ID)
 router.get('/threads', async (req, res, next) => {
   try {
     const status = (req.query.status || 'pending').toString();
-    const items = await Thread.find({ status }).sort({ createdAt: -1 }).lean();
+    const q = (req.query.q || '').trim();
+
+    // Build query
+    const find = { status };
+    if (q) {
+      const escRe = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape for regex
+      const or = [{ title: { $regex: escRe, $options: 'i' } }];
+      if (isValidObjectId(q)) or.push({ _id: q });
+      find.$or = or;
+    }
+
+    const items = await Thread.find(find).sort({ createdAt: -1 }).lean();
 
     const list = (items || [])
       .map(
@@ -331,10 +342,20 @@ router.get('/threads', async (req, res, next) => {
 <div class="row" style="justify-content:space-between;align-items:center">
   <h2>Threads (${esc(status)})</h2>
   <div class="row">
-    <a class="btn" href="/admin/threads?status=pending">Pending</a>
-    <a class="btn" href="/admin/threads?status=approved">Approved</a>
-    <a class="btn" href="/admin/threads?status=rejected">Rejected</a>
+    <a class="btn" href="/admin/threads?status=pending${q ? '&q=' + encodeURIComponent(q) : ''}">Pending</a>
+    <a class="btn" href="/admin/threads?status=approved${q ? '&q=' + encodeURIComponent(q) : ''}">Approved</a>
+    <a class="btn" href="/admin/threads?status=rejected${q ? '&q=' + encodeURIComponent(q) : ''}">Rejected</a>
   </div>
+</div>
+
+<!-- 🔎 Search bar -->
+<div class="card mt12">
+  <form class="row" method="get" action="/admin/threads" style="gap:8px;align-items:center">
+    <input class="input" name="q" value="${esc(q)}" placeholder="Search by title or exact ID" style="min-width:260px">
+    <input type="hidden" name="status" value="${esc(status)}">
+    <button class="btn" type="submit">Search</button>
+    ${q ? `<a class="btn" href="/admin/threads?status=${encodeURIComponent(status)}">Clear</a>` : ''}
+  </form>
 </div>
 
 ${status === 'pending' ? `
@@ -352,11 +373,12 @@ ${status === 'pending' ? `
       `
     );
 
-    renderOrFallback(res, 'threads', { items, status }, fallback);
+    renderOrFallback(res, 'threads', { items, status, q }, fallback);
   } catch (err) {
     next(err);
   }
 });
+
 
 // Thread detail (with comments + mod tools)
 router.get('/threads/:id', async (req, res, next) => {
