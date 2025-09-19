@@ -961,7 +961,7 @@ router.post('/polls/create', async (req, res, next) => {
       errors.question = 'Enter a poll question.';
     }
     if (threadId && !isValidObjectId(threadId)) {
-      errors.threadId = 'Enter a valid Thread ID (24-char Id).';
+      errors.threadId = 'Enter a valid Thread ID (24-char Id). "Note : You can find that Thread ID in Thread/approved section"';
     }
 
     // Parse options
