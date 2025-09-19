@@ -154,6 +154,11 @@
       '.metrics{display:inline-flex;gap:10px;margin-top:6px;color:var(--c-mut);font-size:12px}',
       '.metric{display:inline-flex;align-items:center;gap:6px}',
 
+      '.field{display:flex;flex-direction:column;gap:4px}',
+      '.field.horizontal{flex-direction:row;align-items:center;gap:8px}',
+      '.field .label{font-size:12px;color:var(--c-mut)}',
+
+
       '.vote{border:1px solid var(--c-border);background:#fff;border-radius:999px;padding:7px 10px;line-height:1;cursor:pointer;min-width:52px;display:inline-flex;align-items:center;justify-content:center;box-shadow:inset 0 -2px 0 rgba(0,0,0,.04);font-weight:700}',
       '.vote:hover{box-shadow:0 0 0 4px color-mix(in oklab,var(--c-accent-2) 18%,#0000)}',
       '.vote.voted{border-color:var(--c-accent);box-shadow:0 0 0 4px color-mix(in oklab,var(--c-accent) 22%,#0000)}',
