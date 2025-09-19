@@ -69,6 +69,7 @@ textarea{width:100%}
 hr{border:none;border-top:1px solid var(--border);margin:16px 0}
 .small{font-size:12px;color:var(--muted)}
 .mt8{margin-top:8px}.mb8{margin-bottom:8px}.mt12{margin-top:12px}
+.err{color:#b91c1c;font-size:12px;margin-top:4px}
 </style>
 </head>
 <body>
@@ -103,7 +104,6 @@ function goBack(req, res, fallback = '/admin') {
   const back = req.get('Referrer') || fallback;
   res.redirect(back);
 }
-
 
 /* --------------------- zero-dep CSV export helpers ----------------------- */
 function isPlainObject(v) {
@@ -147,6 +147,97 @@ function toCSV(docs) {
   lines.push(headers.map(escCsv).join(','));
   for (const r of rows) lines.push(headers.map((h) => escCsv(r[h] ?? '')).join(','));
   return lines.join('\r\n');
+}
+
+/* ----------------------- helpers for Polls page -------------------------- */
+const isValidObjectId = (id) => !!id && /^[a-fA-F0-9]{24}$/.test(String(id).trim());
+const isLikelyShopDomain = (s) => !!s && /\.myshopify\.com$/i.test(String(s).trim());
+
+async function renderPollsPage(res, { form = {}, errors = {} } = {}) {
+  const items = await Poll.find({}).sort({ createdAt: -1 }).lean();
+
+  const list = (items || [])
+    .map((p) => {
+      const opts =
+        (p.options || []).length
+          ? (p.options || [])
+              .map((o, i) => `<span class="badge">${esc(o.text || `Option ${i + 1}`)}</span>`)
+              .join(' ')
+          : '<span class="small">(no options)</span>';
+
+      return `<li class="item">
+  <div class="row" style="justify-content:space-between;align-items:flex-start">
+    <div>
+      <b>${esc(p.question || '(no question)')}</b>
+      · <span class="small">${(p.options || []).length} options</span>
+      ${p.status === 'closed' ? ' <span class="badge">closed</span>' : ''}
+      <div class="mt8">${opts}</div>
+      <div class="small mt8">${p._id}</div>
+    </div>
+    <div class="row">
+      <form action="/admin/polls/${p._id}/close" method="post">
+        <button class="btn" type="submit">Close</button>
+      </form>
+    </div>
+  </div>
+</li>`;
+    })
+    .join('');
+
+  // field values (sticky after failed submit)
+  const f = {
+    shop: esc(form.shop || ''),
+    threadId: esc(form.threadId || ''),
+    question: esc(form.question || ''),
+    options: esc(form.options || ''),
+  };
+
+  const err = {
+    shop: errors.shop ? `<div class="err">${esc(errors.shop)}</div>` : '',
+    threadId: errors.threadId ? `<div class="err">${esc(errors.threadId)}</div>` : '',
+    question: errors.question ? `<div class="err">${esc(errors.question)}</div>` : '',
+    options: errors.options ? `<div class="err">${esc(errors.options)}</div>` : '',
+    global: errors.global ? `<div class="err">${esc(errors.global)}</div>` : '',
+  };
+
+  const fallback = shell(
+    'Polls',
+    `
+<div class="card">
+  <h2>Polls</h2>
+  <p>Use shop domain : 4amjw1-pc.myshopify.com</p>
+  ${err.global}
+  <form class="row mt12" action="/admin/polls/create" method="post" style="flex-direction:column;gap:8px;max-width:720px">
+    <div>
+      <input class="input" name="shop" placeholder="shop domain" value="${f.shop}" required />
+      ${err.shop}
+    </div>
+    <div>
+      <input class="input" name="threadId" placeholder="threadId (optional, Mongo ObjectId)" value="${f.threadId}" />
+      ${err.threadId}
+    </div>
+    <div>
+      <input class="input" name="question" placeholder="question" value="${f.question}" required />
+      ${err.question}
+    </div>
+    <div>
+      <textarea class="input" name="options" placeholder="One option per line" rows="5">${f.options}</textarea>
+      ${err.options}
+    </div>
+    <button class="btn primary" type="submit">Create Poll</button>
+  </form>
+</div>
+
+<div class="card mt12">
+  <ul class="clean">${list || '<li class="item">(none)</li>'}</ul>
+</div>
+
+<p class="mt12"><a href="/admin">← Back</a></p>
+    `
+  );
+
+  // If you have an EJS view, it can also receive { items, form, errors }.
+  renderOrFallback(res, 'polls', { items, form, errors }, fallback);
 }
 
 /* --------------------------------- Home ---------------------------------- */
@@ -846,95 +937,85 @@ router.post('/reports/:id/resolve', async (req, res, next) => {
 });
 
 /* --------------------------------- Polls --------------------------------- */
+// GET /admin/polls
 router.get('/polls', async (_req, res, next) => {
   try {
-    const items = await Poll.find({}).sort({ createdAt: -1 }).lean();
-
-    const list = (items || [])
-      .map((p) => {
-        const opts =
-          (p.options || []).length
-            ? (p.options || [])
-              .map((o, i) => `<span class="badge">${esc(o.text || `Option ${i + 1}`)}</span>`)
-              .join(' ')
-            : '<span class="small">(no options)</span>';
-
-        return `<li class="item">
-  <div class="row" style="justify-content:space-between;align-items:flex-start">
-    <div>
-      <b>${esc(p.question || '(no question)')}</b>
-      · <span class="small">${(p.options || []).length} options</span>
-      ${p.status === 'closed' ? ' <span class="badge">closed</span>' : ''}
-      <div class="mt8">${opts}</div>
-      <div class="small mt8">${p._id}</div>
-    </div>
-    <div class="row">
-      <form action="/admin/polls/${p._id}/close" method="post">
-        <button class="btn" type="submit">Close</button>
-      </form>
-    </div>
-  </div>
-</li>`;
-      })
-      .join('');
-
-
-    const fallback = shell(
-      'Polls',
-      `
-<div class="card">
-  <h2>Polls</h2>
-  <p>Use shop domain : 4amjw1-pc.myshopify.com</p>
-  <form class="row mt12" action="/admin/polls/create" method="post">
-    <input class="input" name="shop" placeholder="shop domain" required />
-    <input class="input" name="threadId" placeholder="threadId" />
-    <input class="input" style="flex:1" name="question" placeholder="question" required />
-    <textarea class="mt8" name="options" placeholder="One option per line" rows="5"></textarea>
-    <button class="btn primary" type="submit">Create Poll</button>
-  </form>
-</div>
-
-<div class="card mt12">
-  <ul class="clean">${list || '<li class="item">(none)</li>'}</ul>
-</div>
-
-<p class="mt12"><a href="/admin">← Back</a></p>
-      `
-    );
-
-    renderOrFallback(res, 'polls', { items }, fallback);
+    await renderPollsPage(res, {}); // no form/errors on first load
   } catch (err) {
     next(err);
   }
 });
+
+// POST /admin/polls/create
 router.post('/polls/create', async (req, res, next) => {
   try {
-    const { shop, threadId, question, options } = req.body || {};
-    const cleanedQ = sanitizeHtml((question || '').slice(0, 160), {
-      allowedTags: [], allowedAttributes: {},
-    });
+    const { shop, threadId = '', question, options } = req.body || {};
+    const form = { shop, threadId, question, options };
+    const errors = {};
 
+    // Basic validations
+    if (!shop || !isLikelyShopDomain(shop)) {
+      errors.shop = 'Enter a valid shop domain (e.g., your-store.myshopify.com).';
+    }
+    if (!question || !String(question).trim()) {
+      errors.question = 'Enter a poll question.';
+    }
+    if (threadId && !isValidObjectId(threadId)) {
+      errors.threadId = 'Enter a valid Thread ID (24-char Mongo ObjectId) or leave blank.';
+    }
+
+    // Parse options
     const parsed = (options || '')
       .split(/\r?\n/)
       .map((s) => s.trim())
       .filter(Boolean)
       .map((t, i) => ({
         id: String(i + 1),
-        text: sanitizeHtml(t, { allowedTags: [], allowedAttributes: {} }),
+        text: sanitizeHtml(t.slice(0, 160), { allowedTags: [], allowedAttributes: {} }),
       }));
 
+    if (parsed.length < 2) {
+      errors.options = 'Add at least two options (one per line).';
+    }
+
+    if (Object.keys(errors).length) {
+      return await renderPollsPage(res, { form, errors });
+    }
+
+    // Create doc (avoid cast error by sending null if blank)
     await Poll.create({
       shop: (shop || '').trim(),
-      threadId: (threadId || '').trim() || null,
-      question: cleanedQ,
+      threadId: threadId ? String(threadId).trim() : null,
+      question: sanitizeHtml(String(question).slice(0, 160), {
+        allowedTags: [],
+        allowedAttributes: {},
+      }),
       options: parsed,
     });
 
-    goBack(req, res, '/admin/polls');
+    return res.redirect('/admin/polls');
   } catch (e) {
-    next(e);
+    // Gracefully convert common Mongoose errors to inline messages
+    const body = req.body || {};
+    const form = {
+      shop: body.shop || '',
+      threadId: body.threadId || '',
+      question: body.question || '',
+      options: body.options || '',
+    };
+    const errors = {};
+
+    // If threadId caused a CastError
+    if (e?.name === 'CastError' && e?.path === 'threadId') {
+      errors.threadId = 'Enter a valid Thread ID (24-char Mongo ObjectId) or leave blank.';
+      return renderPollsPage(res, { form, errors });
+    }
+
+    errors.global = 'Could not create poll. Please correct the fields and try again.';
+    return renderPollsPage(res, { form, errors });
   }
 });
+
 // POST /polls/:id/close
 router.post('/polls/:id/close', async (req, res, next) => {
   try {
