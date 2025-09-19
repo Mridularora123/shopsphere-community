@@ -813,6 +813,43 @@
         .finally(function () { el.__voteLock = false; });
     }
 
+    // Report thread
+    container.addEventListener('click', function (ev) {
+      const btn = ev.target.closest('.report-btn');
+      if (!btn || !container.contains(btn)) return;
+
+      if (!cid) { alert('Please log in to report.'); return; }
+
+      const tid = btn.getAttribute('data-tid');
+      const reason = prompt('Why are you reporting this thread? (optional)');
+      if (reason === null) return; // user cancelled
+
+      btn.disabled = true;
+
+      // Backend can choose either endpoint; use one of these depending on what you implemented:
+      // 1) Generic reports endpoint:
+      api('/reports', {
+        method: 'POST',
+        body: { targetType: 'thread', targetId: tid, reason: (reason || '').trim(), customer_id: cid }
+      })
+        // 2) Or a thread-specific endpoint:
+        // api('/threads/' + encodeURIComponent(tid) + '/report', {
+        //   method: 'POST', body: { reason: (reason || '').trim(), customer_id: cid }
+        // })
+        .then(function (out) {
+          if (!out || !out.success) throw new Error((out && out.message) || 'Report failed');
+          btn.textContent = 'Reported';
+          btn.classList.add('primary');
+        })
+        .catch(function (e) {
+          alert('Report failed: ' + e.message);
+        })
+        .finally(function () {
+          btn.disabled = false;
+        });
+    });
+
+
     container.addEventListener('click', function (ev) {
       var el = ev.target.closest('.vote');
       if (el && container.contains(el)) handleVote(el);
