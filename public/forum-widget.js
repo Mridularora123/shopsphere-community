@@ -402,7 +402,7 @@
 
       // HERO
       '  <header class="community-hero">',
-      '    <h1 class="hero-title" id="community-title">Coda Community</h1>',
+      '    <h1 class="hero-title" id="community-title">Join Our Community</h1>',
       '    <p class="hero-sub" id="community-subtitle">We’re happy to have you here. If you need help, please search before you post.</p>',
       '    <div class="hero-search">',
       '      <span class="search-ico">🔎</span>',
