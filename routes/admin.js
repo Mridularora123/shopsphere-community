@@ -208,19 +208,19 @@ async function renderPollsPage(res, { form = {}, errors = {} } = {}) {
   <p>Use shop domain : 4amjw1-pc.myshopify.com</p>
   ${err.global}
   <form class="row mt12" action="/admin/polls/create" method="post" style="flex-direction:column;gap:10px;width:100%">
-    <div>
+    <div style="width:100%">
       <input class="input" name="shop" placeholder="shop domain" value="${f.shop}" required />
       ${err.shop}
     </div>
-    <div>
+    <div style="width:100%">
       <input class="input" name="threadId" placeholder="threadId (optional, Mongo ObjectId)" value="${f.threadId}" />
       ${err.threadId}
     </div>
-    <div>
+    <div style="width:100%">
       <input class="input" name="question" placeholder="question" value="${f.question}" required />
       ${err.question}
     </div>
-    <div>
+    <div style="width:100%">
       <textarea class="input" name="options" placeholder="One option per line" rows="5">${f.options}</textarea>
       ${err.options}
     </div>
