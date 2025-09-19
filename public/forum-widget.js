@@ -153,6 +153,11 @@
       '.community-meta{color:var(--c-mut);font-size:12px}',
       '.metrics{display:inline-flex;gap:10px;margin-top:6px;color:var(--c-mut);font-size:12px}',
       '.metric{display:inline-flex;align-items:center;gap:6px}',
+      
+      '.field{display:flex;flex-direction:column;gap:4px}',
+      '.field.horizontal{flex-direction:row;align-items:center;gap:8px}',
+      '.field .label{font-size:12px;color:var(--c-mut)}',
+
 
       '.vote{border:1px solid var(--c-border);background:#fff;border-radius:999px;padding:7px 10px;line-height:1;cursor:pointer;min-width:52px;display:inline-flex;align-items:center;justify-content:center;box-shadow:inset 0 -2px 0 rgba(0,0,0,.04);font-weight:700}',
       '.vote:hover{box-shadow:0 0 0 4px color-mix(in oklab,var(--c-accent-2) 18%,#0000)}',
@@ -444,8 +449,14 @@
       '      <option value="week" selected>Week</option>',
       '      <option value="month">Month</option>',
       '    </select>',
-      '    <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto"/>',
-      '    <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto"/>',
+      '    <label class="field" style="width:auto">',
+      '      <span class="label">From</span>',
+      '      <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto" />',
+      '    </label>',
+      '    <label class="field" style="width:auto">',
+      '      <span class="label">To</span>',
+      '      <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto" />',
+      '    </label>',
       '    <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
       '    <button id="notif-btn" class="community-btn" type="button" style="margin-left:auto;position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
       '    <div id="notif-panel" class="rail-card" style="display:none;position:absolute;right:0;top:44px;max-width:380px;z-index:50"></div>',
