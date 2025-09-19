@@ -59,7 +59,7 @@ li.item{padding:12px;border-top:1px solid var(--border)}
 li.item:first-child{border-top:0}
 .badge{display:inline-block;background:#eef3ff;border:1px solid #dbe6ff;border-radius:999px;padding:2px 8px;font-size:12px;margin-left:6px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.input,textarea,select{border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:#fff;min-width:0}
+.input,textarea,select{border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:#fff;min-width:0;width:100%}
 textarea{width:100%}
 .btn{appearance:none;border:1px solid var(--border);background:#fff;border-radius:10px;padding:8px 12px;cursor:pointer}
 .btn:hover{border-color:#cbd5e1;box-shadow:0 1px 0 rgba(0,0,0,.03)}
@@ -161,8 +161,8 @@ async function renderPollsPage(res, { form = {}, errors = {} } = {}) {
       const opts =
         (p.options || []).length
           ? (p.options || [])
-              .map((o, i) => `<span class="badge">${esc(o.text || `Option ${i + 1}`)}</span>`)
-              .join(' ')
+            .map((o, i) => `<span class="badge">${esc(o.text || `Option ${i + 1}`)}</span>`)
+            .join(' ')
           : '<span class="small">(no options)</span>';
 
       return `<li class="item">
@@ -207,7 +207,7 @@ async function renderPollsPage(res, { form = {}, errors = {} } = {}) {
   <h2>Polls</h2>
   <p>Use shop domain : 4amjw1-pc.myshopify.com</p>
   ${err.global}
-  <form class="row mt12" action="/admin/polls/create" method="post" style="flex-direction:column;gap:8px;max-width:720px">
+  <form class="row mt12" action="/admin/polls/create" method="post" style="flex-direction:column;gap:10px;width:100%">
     <div>
       <input class="input" name="shop" placeholder="shop domain" value="${f.shop}" required />
       ${err.shop}
