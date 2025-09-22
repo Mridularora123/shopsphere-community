@@ -709,44 +709,22 @@
 
   /* ---------- polls (robust / multi-backend friendly) ---------- */
   function renderPollHTML(poll, canShowCounts) {
-    var pollId = String(poll._id || poll.id || '');
-    var name = 'poll-' + pollId;
+    var name = 'poll-' + poll._id;
     var type = poll.multipleAllowed ? 'checkbox' : 'radio';
-
-    function optCount(o) {
-      // accept any of these fields; default 0
-      return (
-        (typeof o.votes === 'number' && o.votes) ||
-        (typeof o.count === 'number' && o.count) ||
-        (typeof o.voteCount === 'number' && o.voteCount) ||
-        (typeof o.total === 'number' && o.total) ||
-        0
-      );
-    }
-
-    var opts = (poll.options || []).map(function (o, i) {
-      var oid = String(o._id || o.id || '');
-      var count = canShowCounts ? ' <span class="community-meta">(' + optCount(o) + ')</span>' : ' <span class="community-meta">(0)</span>';
+    var opts = (poll.options || []).map(function (o) {
+      var count = (canShowCounts && typeof o.votes === 'number') ? ' <span class="community-meta">(' + o.votes + ')</span>' : '';
       return (
         '<label class="community-poll-option" style="display:block;margin:4px 0">' +
-        '<input ' +
-        'type="' + type + '" ' +
-        'name="' + name + '" ' +
-        'value="' + oid + '" ' +
-        'data-oid="' + oid + '" ' +
-        'data-alt-id="' + String(o.id || '') + '" ' +
-        'data-idx="' + i + '"' +
-        '/> ' +
-        escapeHtml(o.text || '') + count +
+        '<input type="' + type + '" name="' + name + '" value="' + o.id + '"/>' +
+        ' ' + escapeHtml(o.text) + count +
         '</label>'
       );
     }).join('');
-
     var closed = poll.status === 'closed';
+    var disabled = closed ? 'disabled' : '';
     var footer = closed
       ? '<div class="community-meta">Poll closed</div>'
-      : '<button class="community-btn poll-vote-btn">Vote</button>';
-
+      : '<button class="community-btn poll-vote-btn" ' + disabled + '>Vote</button>';
     return (
       '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
       '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(poll.question || 'Poll') + '</div>' +
@@ -754,151 +732,34 @@
       '</div>'
     );
   }
-
-
   function loadPoll(threadId, SHOP, cid) {
     var box = document.getElementById('poll-' + threadId);
     if (!box) return;
-
     var votedKey = 'poll_voted_' + SHOP + '_' + threadId;
     var viewerHasVoted = localStorage.getItem(votedKey) === '1';
-
-    api('/polls/' + encodeURIComponent(threadId), {
-      qs: { viewerHasVoted: viewerHasVoted ? 'true' : 'false' }
-    })
+    api('/polls/' + encodeURIComponent(threadId), { qs: { viewerHasVoted: viewerHasVoted ? 'true' : 'false' } })
       .then(function (res) {
         if (!res || !res.success || !res.poll) { box.innerHTML = ''; return; }
-
         var poll = res.poll;
-        var pollId = String(poll._id || poll.id || threadId);
-
-        // If any option has an id/_id we consider IDs available
-        var idsAvailable = (poll.options || []).some(function (o) { return o && (o.id || o._id); });
-
-        var canShowCounts =
-          viewerHasVoted ||
-          !!poll.viewerHasVoted ||
-          poll.showResults === 'always' ||
-          poll.status === 'closed';
-
-        var inputName = 'poll-' + pollId;
-        var type = poll.multipleAllowed ? 'checkbox' : 'radio';
-
-        function optCount(o) {
-          return (
-            (typeof o.votes === 'number' && o.votes) ||
-            (typeof o.count === 'number' && o.count) ||
-            (typeof o.voteCount === 'number' && o.voteCount) ||
-            0
-          );
-        }
-
-        var optionsHTML = (poll.options || []).map(function (o, i) {
-          // If IDs are hidden, value = index; if present, value = preferred ID
-          var value = idsAvailable ? String(o.id || o._id) : String(i);
-          var cnt = canShowCounts ? ' <span class="community-meta">(' + optCount(o) + ')</span>' : '';
-          return (
-            '<label class="community-poll-option" style="display:block;margin:4px 0">' +
-            '<input type="' + type + '" name="' + inputName + '" ' +
-            'value="' + value + '" data-idx="' + i + '" data-id="' + String(o.id || '') + '" data-mongoid="' + String(o._id || '') + '">' +
-            ' ' + escapeHtml(o.text || '') + cnt +
-            '</label>'
-          );
-        }).join('');
-
-        var closed = poll.status === 'closed';
-        var footer = closed
-          ? '<div class="community-meta">Poll closed</div>'
-          : '<button class="community-btn poll-vote-btn">' +
-          ((viewerHasVoted || poll.viewerHasVoted) ? 'Update vote' : 'Vote') +
-          '</button>';
-
-        box.innerHTML =
-          '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
-          '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(poll.question || 'Poll') + '</div>' +
-          optionsHTML + footer +
-          '</div>';
-
-        if (closed) return;
-
+        var canShowCounts = viewerHasVoted || poll.showResults === 'always' || poll.status === 'closed';
+        box.innerHTML = renderPollHTML(poll, canShowCounts);
         var voteBtn = box.querySelector('.poll-vote-btn');
-        if (!voteBtn) return;
-
+        if (!voteBtn || poll.status === 'closed') return;
         voteBtn.addEventListener('click', function () {
-          var cidNow = getCustomerId();
-          if (!cidNow) { alert('Please log in to vote.'); return; }
-
-          var inputs = box.querySelectorAll('input[name="' + inputName + '"]:checked');
-          if (!inputs.length) { alert('Select at least one option'); return; }
-
-          // Collect chosen values
-          var chosenValues = Array.prototype.map.call(inputs, function (el) { return el.value; });
-          var chosenIdx = Array.prototype.map.call(inputs, function (el) { return parseInt(el.getAttribute('data-idx'), 10); });
-          var chosenMongoIds = Array.prototype.map.call(inputs, function (el) { return el.getAttribute('data-mongoid'); }).filter(Boolean);
-
-          // Build payload depending on whether IDs were available
-          var body = {
-            pollId: pollId,
-            threadId: threadId,
-            customer_id: cidNow,
-            customerId: cidNow,
-            replace: true, update: true, mode: 'replace'
-          };
-
-          if (idsAvailable) {
-            body.optionId = chosenValues[0];
-            body.option_id = chosenValues[0];
-            body.optionIds = chosenValues;
-            body.option_ids = chosenValues;
-          } else {
-            // Do NOT include optionId fields when server hid IDs
-            body.optionIndex = chosenIdx[0];
-            body.option_index = chosenIdx[0];
-            body.optionIndexes = chosenIdx;
-            body.option_indexes = chosenIdx;
-          }
-
-          // Always include these as fallbacks
-          if (chosenIdx.length) {
-            body.index = chosenIdx[0];
-            body.indexes = chosenIdx;
-          }
-          if (chosenMongoIds.length) {
-            body.mongoOptionId = chosenMongoIds[0];
-            body.mongoOptionIds = chosenMongoIds;
-          }
-          // Extra aliases some handlers expect
-          body.option = body.optionId || body.optionIndex;
-          body.options = (body.optionIds || body.optionIndexes || []);
-
+          var cid = getCustomerId();
+          if (!cid) { alert('Please log in to vote.'); return; }
+          var inputs = box.querySelectorAll('input[name="poll-' + poll._id + '"]:checked');
+          var chosen = Array.prototype.map.call(inputs, function (el) { return el.value; });
+          if (!chosen.length) { alert('Select at least one option'); return; }
           voteBtn.disabled = true;
-
-          api('/polls/' + encodeURIComponent(threadId) + '/vote', { method: 'POST', body: body })
+          api('/polls/' + encodeURIComponent(threadId) + '/vote', {
+            method: 'POST',
+            body: { optionIds: chosen, customer_id: cid }
+          })
             .then(function (out) {
               if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
               localStorage.setItem(votedKey, '1');
-              return api('/polls/' + encodeURIComponent(threadId), {
-                qs: { viewerHasVoted: 'true', includeCounts: 'true', withCounts: 'true', _: Date.now() }
-              });
-            })
-            .then(function (fresh) {
-              if (!fresh || !fresh.success || !fresh.poll) return;
-              var p = fresh.poll;
-              var html = (p.options || []).map(function (o, i) {
-                var v = String(o.id || o._id || i);
-                var cnt = ' <span class="community-meta">(' + optCount(o) + ')</span>';
-                return (
-                  '<label class="community-poll-option" style="display:block;margin:4px 0">' +
-                  '<input type="' + (p.multipleAllowed ? 'checkbox' : 'radio') + '" name="' + inputName + '" value="' + v + '" disabled>' +
-                  ' ' + escapeHtml(o.text || '') + cnt +
-                  '</label>'
-                );
-              }).join('');
-              box.innerHTML =
-                '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
-                '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(p.question || 'Poll') + '</div>' +
-                html + '<div class="community-meta">Thanks! Your vote has been recorded.</div>' +
-                '</div>';
+              loadPoll(threadId, SHOP, cid);
             })
             .catch(function (e) { alert('Vote failed: ' + e.message); })
             .finally(function () { voteBtn.disabled = false; });
