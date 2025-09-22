@@ -713,20 +713,26 @@
     var name = 'poll-' + pollId;
     var type = poll.multipleAllowed ? 'checkbox' : 'radio';
 
+    function optCount(o) {
+      // accept any of these fields; default 0
+      return (
+        (typeof o.votes === 'number' && o.votes) ||
+        (typeof o.count === 'number' && o.count) ||
+        (typeof o.voteCount === 'number' && o.voteCount) ||
+        (typeof o.total === 'number' && o.total) ||
+        0
+      );
+    }
+
     var opts = (poll.options || []).map(function (o, i) {
-      // Try every likely id shape
       var oid = String(o._id || o.id || '');
-      var count = (canShowCounts && typeof o.votes === 'number')
-        ? ' <span class="community-meta">(' + o.votes + ')</span>'
-        : '';
+      var count = canShowCounts ? ' <span class="community-meta">(' + optCount(o) + ')</span>' : ' <span class="community-meta">(0)</span>';
       return (
         '<label class="community-poll-option" style="display:block;margin:4px 0">' +
         '<input ' +
         'type="' + type + '" ' +
         'name="' + name + '" ' +
-        // value is the most specific id we have
         'value="' + oid + '" ' +
-        // store alternates so the vote handler can fallback
         'data-oid="' + oid + '" ' +
         'data-alt-id="' + String(o.id || '') + '" ' +
         'data-idx="' + i + '"' +
@@ -749,6 +755,7 @@
     );
   }
 
+
   function loadPoll(threadId, SHOP, cid) {
     var box = document.getElementById('poll-' + threadId);
     if (!box) return;
@@ -756,6 +763,7 @@
     var votedKey = 'poll_voted_' + SHOP + '_' + threadId;
     var viewerHasVoted = localStorage.getItem(votedKey) === '1';
 
+    // fetch the poll (ask server whether we’ve voted so it can decide if counts can be shown)
     api('/polls/' + encodeURIComponent(threadId), {
       qs: { viewerHasVoted: viewerHasVoted ? 'true' : 'false' }
     })
@@ -763,48 +771,99 @@
         if (!res || !res.success || !res.poll) { box.innerHTML = ''; return; }
 
         var poll = res.poll;
-        var pollId = String(poll._id || poll.id || threadId);
-        var canShowCounts = viewerHasVoted || poll.showResults === 'always' || poll.status === 'closed';
-        box.innerHTML = renderPollHTML(poll, canShowCounts);
+
+        // decide if we should show counts
+        var canShowCounts =
+          viewerHasVoted ||
+          !!poll.viewerHasVoted ||
+          poll.showResults === 'always' ||
+          poll.status === 'closed';
+
+        // render the poll UI
+        box.innerHTML = (function renderPollHTML(poll, showCounts) {
+          var name = 'poll-' + (poll._id || poll.id);
+          var type = poll.multipleAllowed ? 'checkbox' : 'radio';
+
+          var opts = (poll.options || []).map(function (o, idx) {
+            var count = (showCounts && typeof o.votes === 'number')
+              ? ' <span class="community-meta">(' + o.votes + ')</span>'
+              : '';
+            // IMPORTANT: value uses o._id (Mongo subdoc id) if present; fall back to o.id
+            var val = (o._id || o.id || String(idx));
+            return (
+              '<label class="community-poll-option" style="display:block;margin:4px 0">' +
+              '<input type="' + type + '" name="' + name + '" value="' + val + '"/>' +
+              ' ' + escapeHtml(o.text) + count +
+              '</label>'
+            );
+          }).join('');
+
+          var closed = poll.status === 'closed';
+          var footer = closed
+            ? '<div class="community-meta">Poll closed</div>'
+            : '<button class="community-btn poll-vote-btn">Vote</button>';
+
+          return (
+            '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
+            '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(poll.question || 'Poll') + '</div>' +
+            opts + footer +
+            '</div>'
+          );
+        })(poll, canShowCounts);
 
         var voteBtn = box.querySelector('.poll-vote-btn');
         if (!voteBtn || poll.status === 'closed') return;
 
+        // if the user has voted already, indicate that we’ll replace their vote
+        var alreadyVoted = viewerHasVoted || !!poll.viewerHasVoted;
+        if (alreadyVoted) {
+          voteBtn.textContent = 'Update vote';
+          var hint = document.createElement('div');
+          hint.className = 'community-meta';
+          hint.style.marginTop = '4px';
+          hint.textContent = 'Updating will replace your previous vote.';
+          voteBtn.insertAdjacentElement('afterend', hint);
+        }
+
         voteBtn.addEventListener('click', function () {
-          var cid = getCustomerId();
-          if (!cid) { alert('Please log in to vote.'); return; }
+          var cidNow = getCustomerId();
+          if (!cidNow) { alert('Please log in to vote.'); return; }
 
-          // Gather chosen inputs and collect multiple identifier forms
-          var inputs = box.querySelectorAll('input[name="poll-' + pollId + '"]:checked');
-          var chosenIds = [];
-          var chosenIdx = [];
-          Array.prototype.forEach.call(inputs, function (el) {
-            // prefer value (oid), then data-alt-id; index always available
-            var oid = (el.getAttribute('value') || el.getAttribute('data-oid') || el.getAttribute('data-alt-id') || '').trim();
-            if (oid) chosenIds.push(oid);
-            var idx = el.getAttribute('data-idx');
-            if (idx !== null && idx !== undefined) chosenIdx.push(parseInt(idx, 10));
+          // gather chosen option ids
+          var name = 'poll-' + (poll._id || poll.id);
+          var inputs = box.querySelectorAll('input[name="' + name + '"]:checked');
+          var chosenIds = Array.prototype.map.call(inputs, function (el) { return el.value; });
+          if (!chosenIds.length) { alert('Select at least one option'); return; }
+
+          // also derive indexes (some backends prefer indexes)
+          var idToIndex = {};
+          (poll.options || []).forEach(function (o, i) {
+            idToIndex[(o._id || o.id || String(i))] = i;
           });
-
-          if (!chosenIds.length && !chosenIdx.length) {
-            alert('Select at least one option');
-            return;
-          }
+          var chosenIdx = chosenIds.map(function (id) { return idToIndex[id]; }).filter(function (n) { return n != null; });
 
           voteBtn.disabled = true;
 
-          // Build a very forgiving payload for different backends
+          // send both id and index variants + replace flags to support different backends
           var payload = {
-            // id-based variants
-            optionIds: chosenIds,                 // array camelCase
-            optionId: chosenIds[0],               // single camelCase
-            option_ids: chosenIds,                // array snake_case
-            // index-based variants
-            option_indexes: chosenIdx,            // array snake_case (common)
-            option_index: chosenIdx[0],           // single snake_case
-            // helpful extra context
-            pollId: pollId,
-            customer_id: cid
+            customer_id: cidNow,
+            pollId: (poll._id || poll.id || threadId),
+
+            // ids
+            optionIds: chosenIds,
+            optionId: chosenIds[0],
+            option_ids: chosenIds,
+
+            // indexes
+            optionIndexes: chosenIdx,
+            optionIndex: chosenIdx[0],
+            option_indexes: chosenIdx,
+            option_index: chosenIdx[0],
+
+            // change-vote semantics
+            replace: true,
+            update: true,
+            mode: 'replace'
           };
 
           api('/polls/' + encodeURIComponent(threadId) + '/vote', {
@@ -813,15 +872,49 @@
           })
             .then(function (out) {
               if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
+              // mark as voted so counts show next render
               localStorage.setItem(votedKey, '1');
-              loadPoll(threadId, SHOP, cid); // refresh showing counts
+
+              // fetch fresh results so totals update immediately
+              return api('/polls/' + encodeURIComponent(threadId), {
+                qs: { viewerHasVoted: 'true', includeCounts: 'true', withCounts: 'true', _: Date.now() }
+              });
             })
-            .catch(function (e) { alert('Vote failed: ' + e.message); })
-            .finally(function () { voteBtn.disabled = false; });
+            .then(function (fresh) {
+              if (fresh && fresh.success && fresh.poll) {
+                // re-render with counts
+                var canShow = true;
+                box.innerHTML = (function renderPollHTML(poll, showCounts) {
+                  var name = 'poll-' + (poll._id || poll.id);
+                  var type = poll.multipleAllowed ? 'checkbox' : 'radio';
+                  var opts = (poll.options || []).map(function (o, idx) {
+                    var count = (showCounts && typeof o.votes === 'number')
+                      ? ' <span class="community-meta">(' + o.votes + ')</span>' : '';
+                    var val = (o._id || o.id || String(idx));
+                    return '<label class="community-poll-option" style="display:block;margin:4px 0">' +
+                      '<input type="' + type + '" name="' + name + '" value="' + val + '" disabled/>' +
+                      ' ' + escapeHtml(o.text) + count +
+                      '</label>';
+                  }).join('');
+                  return '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
+                    '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(poll.question || 'Poll') + '</div>' +
+                    opts + '<div class="community-meta">Thanks for voting.</div>' +
+                    '</div>';
+                })(fresh.poll, canShow);
+              }
+            })
+            .catch(function (e) {
+              alert('Vote failed: ' + e.message);
+            })
+            .finally(function () {
+              voteBtn.disabled = false;
+            });
         });
       })
       .catch(function () { box.innerHTML = ''; });
   }
+
+
 
 
   /* ---------- inline replies ---------- */
