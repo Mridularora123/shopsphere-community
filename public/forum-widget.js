@@ -763,7 +763,7 @@
     var votedKey = 'poll_voted_' + SHOP + '_' + threadId;
     var viewerHasVoted = localStorage.getItem(votedKey) === '1';
 
-    // fetch the poll (ask server whether we’ve voted so it can decide if counts can be shown)
+    // get poll (server can decide if counts should be shown)
     api('/polls/' + encodeURIComponent(threadId), {
       qs: { viewerHasVoted: viewerHasVoted ? 'true' : 'false' }
     })
@@ -771,96 +771,96 @@
         if (!res || !res.success || !res.poll) { box.innerHTML = ''; return; }
 
         var poll = res.poll;
+        var pollId = String(poll._id || poll.id || threadId);
 
-        // decide if we should show counts
+        // show counts if: viewer has voted, server says we have, poll is closed, or showResults=always
         var canShowCounts =
           viewerHasVoted ||
           !!poll.viewerHasVoted ||
           poll.showResults === 'always' ||
           poll.status === 'closed';
 
-        // render the poll UI
-        box.innerHTML = (function renderPollHTML(poll, showCounts) {
-          var name = 'poll-' + (poll._id || poll.id);
-          var type = poll.multipleAllowed ? 'checkbox' : 'radio';
+        // ---- RENDER ----
+        var inputName = 'poll-' + pollId;
+        var type = poll.multipleAllowed ? 'checkbox' : 'radio';
 
-          var opts = (poll.options || []).map(function (o, idx) {
-            var count = (showCounts && typeof o.votes === 'number')
-              ? ' <span class="community-meta">(' + o.votes + ')</span>'
-              : '';
-            // IMPORTANT: value uses o._id (Mongo subdoc id) if present; fall back to o.id
-            var val = (o._id || o.id || String(idx));
-            return (
-              '<label class="community-poll-option" style="display:block;margin:4px 0">' +
-              '<input type="' + type + '" name="' + name + '" value="' + val + '"/>' +
-              ' ' + escapeHtml(o.text) + count +
-              '</label>'
-            );
-          }).join('');
-
-          var closed = poll.status === 'closed';
-          var footer = closed
-            ? '<div class="community-meta">Poll closed</div>'
-            : '<button class="community-btn poll-vote-btn">Vote</button>';
-
+        function optCount(o) {
           return (
-            '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
-            '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(poll.question || 'Poll') + '</div>' +
-            opts + footer +
-            '</div>'
+            (typeof o.votes === 'number' && o.votes) ||
+            (typeof o.count === 'number' && o.count) ||
+            (typeof o.voteCount === 'number' && o.voteCount) ||
+            0
           );
-        })(poll, canShowCounts);
+        }
+
+        // ⚠️ Prefer `o.id` over Mongo `_id` (back-end often validates `id`)
+        var options = (poll.options || []).map(function (o, i) {
+          var idPref = String(o.id || o._id || i);  // <— prefer id
+          var cnt = canShowCounts ? ' <span class="community-meta">(' + optCount(o) + ')</span>' : '';
+          return (
+            '<label class="community-poll-option" style="display:block;margin:4px 0">' +
+            '<input type="' + type + '" name="' + inputName + '" ' +
+            'value="' + idPref + '" data-idx="' + i + '" data-id="' + idPref + '" data-mongoid="' + String(o._id || '') + '">' +
+            ' ' + escapeHtml(o.text || '') + cnt +
+            '</label>'
+          );
+        }).join('');
+
+        var closed = poll.status === 'closed';
+        var footer = closed
+          ? '<div class="community-meta">Poll closed</div>'
+          : '<button class="community-btn poll-vote-btn">' + (viewerHasVoted || poll.viewerHasVoted ? 'Update vote' : 'Vote') + '</button>';
+
+        box.innerHTML =
+          '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
+          '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(poll.question || 'Poll') + '</div>' +
+          options + footer +
+          '</div>';
+
+        if (closed) return;
 
         var voteBtn = box.querySelector('.poll-vote-btn');
-        if (!voteBtn || poll.status === 'closed') return;
-
-        // if the user has voted already, indicate that we’ll replace their vote
-        var alreadyVoted = viewerHasVoted || !!poll.viewerHasVoted;
-        if (alreadyVoted) {
-          voteBtn.textContent = 'Update vote';
-          var hint = document.createElement('div');
-          hint.className = 'community-meta';
-          hint.style.marginTop = '4px';
-          hint.textContent = 'Updating will replace your previous vote.';
-          voteBtn.insertAdjacentElement('afterend', hint);
-        }
+        if (!voteBtn) return;
 
         voteBtn.addEventListener('click', function () {
           var cidNow = getCustomerId();
           if (!cidNow) { alert('Please log in to vote.'); return; }
 
-          // gather chosen option ids
-          var name = 'poll-' + (poll._id || poll.id);
-          var inputs = box.querySelectorAll('input[name="' + name + '"]:checked');
+          // collect chosen
+          var inputs = box.querySelectorAll('input[name="' + inputName + '"]:checked');
           var chosenIds = Array.prototype.map.call(inputs, function (el) { return el.value; });
           if (!chosenIds.length) { alert('Select at least one option'); return; }
 
-          // also derive indexes (some backends prefer indexes)
-          var idToIndex = {};
-          (poll.options || []).forEach(function (o, i) {
-            idToIndex[(o._id || o.id || String(i))] = i;
-          });
-          var chosenIdx = chosenIds.map(function (id) { return idToIndex[id]; }).filter(function (n) { return n != null; });
+          // also provide indexes and mongo subdoc ids just in case the API needs them
+          var chosenIdx = Array.prototype.map.call(inputs, function (el) { return parseInt(el.getAttribute('data-idx'), 10); });
+          var chosenMongoIds = Array.prototype.map.call(inputs, function (el) { return el.getAttribute('data-mongoid'); }).filter(Boolean);
 
           voteBtn.disabled = true;
 
-          // send both id and index variants + replace flags to support different backends
-          var payload = {
-            customer_id: cidNow,
-            pollId: (poll._id || poll.id || threadId),
+          // send a payload that satisfies strict/legacy handlers
+          var body = {
+            pollId: pollId,
+            threadId: threadId,
 
-            // ids
-            optionIds: chosenIds,
+            // preferred (IDs): we now send the `id` we rendered as value
             optionId: chosenIds[0],
+            optionIds: chosenIds,
+            option_id: chosenIds[0],
             option_ids: chosenIds,
 
-            // indexes
-            optionIndexes: chosenIdx,
+            // fallbacks (indexes and mongo _ids)
             optionIndex: chosenIdx[0],
-            option_indexes: chosenIdx,
+            optionIndexes: chosenIdx,
             option_index: chosenIdx[0],
+            option_indexes: chosenIdx,
+            mongoOptionId: chosenMongoIds[0],
+            mongoOptionIds: chosenMongoIds,
 
-            // change-vote semantics
+            // identity (support both keys)
+            customer_id: cidNow,
+            customerId: cidNow,
+
+            // allow changing vote
             replace: true,
             update: true,
             mode: 'replace'
@@ -868,51 +868,46 @@
 
           api('/polls/' + encodeURIComponent(threadId) + '/vote', {
             method: 'POST',
-            body: payload
+            body: body
           })
             .then(function (out) {
               if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
-              // mark as voted so counts show next render
+
+              // remember that this viewer has voted so counts show next render
               localStorage.setItem(votedKey, '1');
 
-              // fetch fresh results so totals update immediately
+              // re-fetch to show updated counts immediately
               return api('/polls/' + encodeURIComponent(threadId), {
-                qs: { viewerHasVoted: 'true', includeCounts: 'true', withCounts: 'true', _: Date.now() }
+                qs: { viewerHasVoted: 'true', includeCounts: 'true', _: Date.now() }
               });
             })
             .then(function (fresh) {
-              if (fresh && fresh.success && fresh.poll) {
-                // re-render with counts
-                var canShow = true;
-                box.innerHTML = (function renderPollHTML(poll, showCounts) {
-                  var name = 'poll-' + (poll._id || poll.id);
-                  var type = poll.multipleAllowed ? 'checkbox' : 'radio';
-                  var opts = (poll.options || []).map(function (o, idx) {
-                    var count = (showCounts && typeof o.votes === 'number')
-                      ? ' <span class="community-meta">(' + o.votes + ')</span>' : '';
-                    var val = (o._id || o.id || String(idx));
-                    return '<label class="community-poll-option" style="display:block;margin:4px 0">' +
-                      '<input type="' + type + '" name="' + name + '" value="' + val + '" disabled/>' +
-                      ' ' + escapeHtml(o.text) + count +
-                      '</label>';
-                  }).join('');
-                  return '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
-                    '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(poll.question || 'Poll') + '</div>' +
-                    opts + '<div class="community-meta">Thanks for voting.</div>' +
-                    '</div>';
-                })(fresh.poll, canShow);
-              }
+              if (!fresh || !fresh.success || !fresh.poll) return;
+              // simple re-render with counts visible
+              var p = fresh.poll;
+              var html = (p.options || []).map(function (o, i) {
+                var idPref = String(o.id || o._id || i);
+                var cnt = ' <span class="community-meta">(' + optCount(o) + ')</span>';
+                return (
+                  '<label class="community-poll-option" style="display:block;margin:4px 0">' +
+                  '<input type="' + (p.multipleAllowed ? 'checkbox' : 'radio') + '" name="' + inputName + '" value="' + idPref + '" disabled>' +
+                  ' ' + escapeHtml(o.text || '') + cnt +
+                  '</label>'
+                );
+              }).join('');
+              box.innerHTML =
+                '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
+                '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(p.question || 'Poll') + '</div>' +
+                html + '<div class="community-meta">Thanks! Your vote has been recorded.</div>' +
+                '</div>';
             })
-            .catch(function (e) {
-              alert('Vote failed: ' + e.message);
-            })
-            .finally(function () {
-              voteBtn.disabled = false;
-            });
+            .catch(function (e) { alert('Vote failed: ' + e.message); })
+            .finally(function () { voteBtn.disabled = false; });
         });
       })
       .catch(function () { box.innerHTML = ''; });
   }
+
 
 
 
