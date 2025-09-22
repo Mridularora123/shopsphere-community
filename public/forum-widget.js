@@ -707,29 +707,39 @@
       .catch(function (e) { box.innerHTML = '<div class="community-meta">Failed: ' + e.message + '</div>'; });
   }
 
-  /* ---------- polls ---------- */
+  /* ---------- polls (robust / multi-backend friendly) ---------- */
   function renderPollHTML(poll, canShowCounts) {
-    var name = 'poll-' + poll._id;
+    var pollId = String(poll._id || poll.id || '');
+    var name = 'poll-' + pollId;
     var type = poll.multipleAllowed ? 'checkbox' : 'radio';
 
-    var opts = (poll.options || []).map(function (o) {
+    var opts = (poll.options || []).map(function (o, i) {
+      // Try every likely id shape
+      var oid = String(o._id || o.id || '');
       var count = (canShowCounts && typeof o.votes === 'number')
         ? ' <span class="community-meta">(' + o.votes + ')</span>'
         : '';
       return (
         '<label class="community-poll-option" style="display:block;margin:4px 0">' +
-        // ✅ use _id (Mongo subdocument id), not id
-        '<input type="' + type + '" name="' + name + '" value="' + o._id + '"/>' +
-        ' ' + escapeHtml(o.text) + count +
+        '<input ' +
+        'type="' + type + '" ' +
+        'name="' + name + '" ' +
+        // value is the most specific id we have
+        'value="' + oid + '" ' +
+        // store alternates so the vote handler can fallback
+        'data-oid="' + oid + '" ' +
+        'data-alt-id="' + String(o.id || '') + '" ' +
+        'data-idx="' + i + '"' +
+        '/> ' +
+        escapeHtml(o.text || '') + count +
         '</label>'
       );
     }).join('');
 
     var closed = poll.status === 'closed';
-    var disabled = closed ? 'disabled' : '';
     var footer = closed
       ? '<div class="community-meta">Poll closed</div>'
-      : '<button class="community-btn poll-vote-btn" ' + disabled + '>Vote</button>';
+      : '<button class="community-btn poll-vote-btn">Vote</button>';
 
     return (
       '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
@@ -753,6 +763,7 @@
         if (!res || !res.success || !res.poll) { box.innerHTML = ''; return; }
 
         var poll = res.poll;
+        var pollId = String(poll._id || poll.id || threadId);
         var canShowCounts = viewerHasVoted || poll.showResults === 'always' || poll.status === 'closed';
         box.innerHTML = renderPollHTML(poll, canShowCounts);
 
@@ -763,26 +774,47 @@
           var cid = getCustomerId();
           if (!cid) { alert('Please log in to vote.'); return; }
 
-          // read chosen option ids (respecting radio/checkbox)
-          var inputs = box.querySelectorAll('input[name="poll-' + (poll._id || poll.id) + '"]:checked');
-          var chosen = Array.prototype.map.call(inputs, function (el) { return el.value; });
-          if (!chosen.length) { alert('Select at least one option'); return; }
+          // Gather chosen inputs and collect multiple identifier forms
+          var inputs = box.querySelectorAll('input[name="poll-' + pollId + '"]:checked');
+          var chosenIds = [];
+          var chosenIdx = [];
+          Array.prototype.forEach.call(inputs, function (el) {
+            // prefer value (oid), then data-alt-id; index always available
+            var oid = (el.getAttribute('value') || el.getAttribute('data-oid') || el.getAttribute('data-alt-id') || '').trim();
+            if (oid) chosenIds.push(oid);
+            var idx = el.getAttribute('data-idx');
+            if (idx !== null && idx !== undefined) chosenIdx.push(parseInt(idx, 10));
+          });
+
+          if (!chosenIds.length && !chosenIdx.length) {
+            alert('Select at least one option');
+            return;
+          }
 
           voteBtn.disabled = true;
 
-          // Send both forms so the backend accepts either (array or single)
+          // Build a very forgiving payload for different backends
+          var payload = {
+            // id-based variants
+            optionIds: chosenIds,                 // array camelCase
+            optionId: chosenIds[0],               // single camelCase
+            option_ids: chosenIds,                // array snake_case
+            // index-based variants
+            option_indexes: chosenIdx,            // array snake_case (common)
+            option_index: chosenIdx[0],           // single snake_case
+            // helpful extra context
+            pollId: pollId,
+            customer_id: cid
+          };
+
           api('/polls/' + encodeURIComponent(threadId) + '/vote', {
             method: 'POST',
-            body: {
-              optionIds: chosen,          // multiple / modern
-              optionId: chosen[0],        // single / legacy
-              customer_id: cid
-            }
+            body: payload
           })
             .then(function (out) {
               if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
               localStorage.setItem(votedKey, '1');
-              loadPoll(threadId, SHOP, cid); // refresh with counts
+              loadPoll(threadId, SHOP, cid); // refresh showing counts
             })
             .catch(function (e) { alert('Vote failed: ' + e.message); })
             .finally(function () { voteBtn.disabled = false; });
@@ -790,6 +822,7 @@
       })
       .catch(function () { box.innerHTML = ''; });
   }
+
 
   /* ---------- inline replies ---------- */
   function wireCommentReplies(container, cid, SHOP) {
