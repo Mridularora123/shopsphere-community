@@ -556,53 +556,110 @@
   }
 
   function renderThreads(container, items, cid) {
-    container.insertAdjacentHTML('beforeend', (items || []).map(function (t) {
-      var isClosed = !!(t.closedAt || t.closed);
-      var closedBadge = isClosed ? '<span class="badge">Closed</span>' : '';
-      var pinnedBadge = t.pinned ? '<span class="badge">Pinned</span>' : '';
-      var votes = typeof t.votes === 'number' ? t.votes : 0;
+    // 1) Render cards (poll block moved ABOVE the body; “Poll” badge added)
+    container.insertAdjacentHTML(
+      'beforeend',
+      (items || [])
+        .map(function (t) {
+          var isClosed = !!(t.closedAt || t.closed);
+          var closedBadge = isClosed ? '<span class="badge">Closed</span>' : '';
+          var pinnedBadge = t.pinned ? '<span class="badge">Pinned</span>' : '';
+          var votes = typeof t.votes === 'number' ? t.votes : 0;
 
-      // best-effort comment count
-      var cc = t.commentsCount; if (cc == null) cc = t.commentCount;
-      if (cc == null) cc = t.replies;
-      if (cc == null) cc = t.replyCount;
-      if (cc == null) cc = t.numComments;
-      if (cc == null) cc = 0;
+          // best-effort comment count
+          var cc = t.commentsCount;
+          if (cc == null) cc = t.commentCount;
+          if (cc == null) cc = t.replies;
+          if (cc == null) cc = t.replyCount;
+          if (cc == null) cc = t.numComments;
+          if (cc == null) cc = 0;
 
-      var commentAccordion = [
-        '<details class="comments-accordion" data-tid="' + t._id + '">',
-        '  <summary><span class="summary-pill">💬 Comments</span></summary>',
-        '  <div id="comments-' + t._id + '"></div>',
-        '  <div class="community-row" style="margin-top:8px">',
-        isClosed || t.locked
-          ? '<div class="community-meta">Thread is ' + (isClosed ? 'closed' : 'locked') + ' — new replies are disabled.</div>'
-          : [
-            '  <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..." aria-label="Write a comment"/>',
-            '  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="' + t._id + '"/><span class="community-meta">Anonymous</span></label>',
-            '  <button data-tid="' + t._id + '" class="community-btn comment-btn">Reply</button>',
-            '  <button data-tid="' + t._id + '" class="community-btn report-btn" title="Report">Report</button>'
-          ].join(''),
-        '  </div>',
-        '</details>'
-      ].join('');
+          // comments accordion
+          var commentAccordion = [
+            '<details class="comments-accordion" data-tid="' + t._id + '">',
+            '  <summary><span class="summary-pill">💬 Comments</span></summary>',
+            '  <div id="comments-' + t._id + '"></div>',
+            '  <div class="community-row" style="margin-top:8px">',
+            isClosed || t.locked
+              ? '<div class="community-meta">Thread is ' +
+              (isClosed ? 'closed' : 'locked') +
+              ' — new replies are disabled.</div>'
+              : [
+                '  <input data-tid="' + t._id + '" class="community-input comment-input" placeholder="Write a comment..." aria-label="Write a comment"/>',
+                '  <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="comment-anon" data-tid="' + t._id + '"/><span class="community-meta">Anonymous</span></label>',
+                '  <button data-tid="' + t._id + '" class="community-btn comment-btn">Reply</button>',
+                '  <button data-tid="' + t._id + '" class="community-btn report-btn" title="Report">Report</button>'
+              ].join(''),
+            '  </div>',
+            '</details>'
+          ].join('');
 
-      return [
-        '<div class="community-card" role="listitem">',
-        '  <div class="card-head">',
-        '    <div class="thread-title">' + escapeHtml(t.title) + ' ' + pinnedBadge + ' ' + closedBadge + '</div>',
-        '    <button class="vote" type="button" role="button" tabindex="0" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0">▲ ' + votes + '</button>',
-        '  </div>',
-        '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
-        '  <div class="thread-body">' + renderMarkdown(t.body || '') + '</div>',
-        '  <div style="margin:6px 0;">' + (t.tags || []).map(function (x) { return '<span class="community-tag">#' + escapeHtml(x) + '</span>'; }).join('') + '</div>',
-        '  <div class="metrics" aria-hidden="false">' + metric(cc, '💬', 'comments') + metric(votes, '▲', 'upvotes') + '</div>',
-        '  <div id="poll-' + t._id + '" class="poll-wrap" style="margin:8px 0"></div>',
-        threadActionsHTML(t, cid),
-        commentAccordion,
-        '</div>'
-      ].join('');
-    }).join(''));
+          return [
+            '<div class="community-card" role="listitem">',
+            '  <div class="card-head">',
+            '    <div class="thread-title">' +
+            escapeHtml(t.title) +
+            ' ' +
+            pinnedBadge +
+            ' ' +
+            closedBadge +
+            // NEW: poll badge placeholder (shown automatically when a poll exists)
+            ' <span id="pb-' + t._id + '" class="badge poll-badge" style="display:none">Poll</span>' +
+            '</div>',
+            '    <button class="vote" type="button" role="button" tabindex="0" aria-label="Upvote thread" aria-pressed="false" data-type="thread" data-id="' + t._id + '" data-voted="0">▲ ' +
+            votes +
+            '</button>',
+            '  </div>',
+            '  <div class="community-meta">' + new Date(t.createdAt).toLocaleString() + '</div>',
+
+            // NEW: poll goes FIRST so it’s front-and-center
+            '  <div id="poll-' + t._id + '" class="poll-wrap" style="margin:10px 0"></div>',
+
+            // Body/content follows the poll
+            '  <div class="thread-body">' + renderMarkdown(t.body || '') + '</div>',
+            '  <div style="margin:6px 0;">' +
+            (t.tags || [])
+              .map(function (x) {
+                return '<span class="community-tag">#' + escapeHtml(x) + '</span>';
+              })
+              .join('') +
+            '</div>',
+            '  <div class="metrics" aria-hidden="false">' +
+            metric(cc, '💬', 'comments') +
+            metric(votes, '▲', 'upvotes') +
+            '</div>',
+            threadActionsHTML(t, cid),
+            commentAccordion,
+            '</div>'
+          ].join('');
+        })
+        .join('')
+    );
+
+    // 2) After inserting, wire a tiny observer per card to auto-show the “Poll” badge
+    //    as soon as the poll HTML gets loaded into #poll-<threadId>.
+    (items || []).forEach(function (t) {
+      var badge = document.getElementById('pb-' + t._id);
+      var box = document.getElementById('poll-' + t._id);
+      if (!badge || !box) return;
+
+      function syncBadge() {
+        // If the poll area has any meaningful content, reveal the badge.
+        var hasPoll =
+          box.querySelector('.community-poll-card, input[type="radio"], input[type="checkbox"], button') ||
+          (box.textContent && box.textContent.trim().length > 0);
+        badge.style.display = hasPoll ? 'inline-block' : 'none';
+      }
+
+      // Initial check (in case the poll is injected synchronously)
+      syncBadge();
+
+      // Watch for poll content arriving (loadPoll injects HTML later)
+      var mo = new MutationObserver(syncBadge);
+      mo.observe(box, { childList: true, subtree: true });
+    });
   }
+
 
   /* ---------- comments (with reply dropdowns) ---------- */
   function renderCommentTree(list, cid) {

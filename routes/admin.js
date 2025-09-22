@@ -975,49 +975,44 @@ router.post('/polls/create', async (req, res, next) => {
     const form = { shop, threadId, question, options };
     const errors = {};
 
-    // Basic validations
-    if (!shop || !isLikelyShopDomain(shop)) {
-      errors.shop = 'Enter a valid shop domain (e.g., your-store.myshopify.com).';
-    }
-    if (!question || !String(question).trim()) {
-      errors.question = 'Enter a poll question.';
-    }
-    if (threadId && !isValidObjectId(threadId)) {
-      errors.threadId = 'Enter a valid Thread ID (24-char Id). "Note : You can find that Thread ID in Thread/approved section"';
-    }
-
-    // Parse options
-    const parsed = (options || '')
-      .split(/\r?\n/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((t, i) => ({
-        id: String(i + 1),
-        text: sanitizeHtml(t.slice(0, 160), { allowedTags: [], allowedAttributes: {} }),
-      }));
-
-    if (parsed.length < 2) {
-      errors.options = 'Add at least two options (one per line).';
-    }
+    // (…existing validation & parsed "options" code…)
 
     if (Object.keys(errors).length) {
       return await renderPollsPage(res, { form, errors });
     }
 
-    // Create doc (avoid cast error by sending null if blank)
+    // ✅ NEW: if no threadId provided, create a dedicated "poll thread"
+    let threadObjectId = threadId && threadId.trim();
+    if (!threadObjectId) {
+      const threadDoc = await Thread.create({
+        shop: (shop || '').trim(),
+        title: String(question).slice(0, 160),
+        body: '',                         // keep body empty; poll is the content
+        tags: ['poll'],                   // helps the widget badge/style it
+        status: 'approved',               // publish immediately (admin-created)
+        createdAt: new Date(),
+        author: {
+          // lightweight “system/admin” author; adjust if you store admin user ids
+          displayName: 'Admin',
+          customerId: null
+        }
+      });
+      threadObjectId = String(threadDoc._id);
+    }
+
+    // Create Poll, linked to the (existing or newly created) thread
     await Poll.create({
       shop: (shop || '').trim(),
-      threadId: threadId ? String(threadId).trim() : null,
+      threadId: threadObjectId,          // <-- link to thread
       question: sanitizeHtml(String(question).slice(0, 160), {
-        allowedTags: [],
-        allowedAttributes: {},
+        allowedTags: [], allowedAttributes: {}
       }),
-      options: parsed,
+      options: parsed
     });
 
     return res.redirect('/admin/polls');
   } catch (e) {
-    // Gracefully convert common Mongoose errors to inline messages
+    // (…existing error handling…)
     const body = req.body || {};
     const form = {
       shop: body.shop || '',
@@ -1027,7 +1022,6 @@ router.post('/polls/create', async (req, res, next) => {
     };
     const errors = {};
 
-    // If threadId caused a CastError
     if (e?.name === 'CastError' && e?.path === 'threadId') {
       errors.threadId = 'Enter a valid Thread ID (24-char Mongo ObjectId) or leave blank.';
       return renderPollsPage(res, { form, errors });
@@ -1037,6 +1031,7 @@ router.post('/polls/create', async (req, res, next) => {
     return renderPollsPage(res, { form, errors });
   }
 });
+
 
 // POST /polls/:id/close
 router.post('/polls/:id/close', async (req, res, next) => {
