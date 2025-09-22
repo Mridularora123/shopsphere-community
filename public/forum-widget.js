@@ -763,7 +763,6 @@
     var votedKey = 'poll_voted_' + SHOP + '_' + threadId;
     var viewerHasVoted = localStorage.getItem(votedKey) === '1';
 
-    // get poll (server can decide if counts should be shown)
     api('/polls/' + encodeURIComponent(threadId), {
       qs: { viewerHasVoted: viewerHasVoted ? 'true' : 'false' }
     })
@@ -773,14 +772,15 @@
         var poll = res.poll;
         var pollId = String(poll._id || poll.id || threadId);
 
-        // show counts if: viewer has voted, server says we have, poll is closed, or showResults=always
+        // If any option has an id/_id we consider IDs available
+        var idsAvailable = (poll.options || []).some(function (o) { return o && (o.id || o._id); });
+
         var canShowCounts =
           viewerHasVoted ||
           !!poll.viewerHasVoted ||
           poll.showResults === 'always' ||
           poll.status === 'closed';
 
-        // ---- RENDER ----
         var inputName = 'poll-' + pollId;
         var type = poll.multipleAllowed ? 'checkbox' : 'radio';
 
@@ -793,14 +793,14 @@
           );
         }
 
-        // ⚠️ Prefer `o.id` over Mongo `_id` (back-end often validates `id`)
-        var options = (poll.options || []).map(function (o, i) {
-          var idPref = String(o.id || o._id || i);  // <— prefer id
+        var optionsHTML = (poll.options || []).map(function (o, i) {
+          // If IDs are hidden, value = index; if present, value = preferred ID
+          var value = idsAvailable ? String(o.id || o._id) : String(i);
           var cnt = canShowCounts ? ' <span class="community-meta">(' + optCount(o) + ')</span>' : '';
           return (
             '<label class="community-poll-option" style="display:block;margin:4px 0">' +
             '<input type="' + type + '" name="' + inputName + '" ' +
-            'value="' + idPref + '" data-idx="' + i + '" data-id="' + idPref + '" data-mongoid="' + String(o._id || '') + '">' +
+            'value="' + value + '" data-idx="' + i + '" data-id="' + String(o.id || '') + '" data-mongoid="' + String(o._id || '') + '">' +
             ' ' + escapeHtml(o.text || '') + cnt +
             '</label>'
           );
@@ -809,12 +809,14 @@
         var closed = poll.status === 'closed';
         var footer = closed
           ? '<div class="community-meta">Poll closed</div>'
-          : '<button class="community-btn poll-vote-btn">' + (viewerHasVoted || poll.viewerHasVoted ? 'Update vote' : 'Vote') + '</button>';
+          : '<button class="community-btn poll-vote-btn">' +
+          ((viewerHasVoted || poll.viewerHasVoted) ? 'Update vote' : 'Vote') +
+          '</button>';
 
         box.innerHTML =
           '<div class="community-poll-card" style="padding:8px;border:1px dashed #ddd;border-radius:8px">' +
           '<div style="font-weight:600;margin-bottom:6px">' + escapeHtml(poll.question || 'Poll') + '</div>' +
-          options + footer +
+          optionsHTML + footer +
           '</div>';
 
         if (closed) return;
@@ -826,71 +828,68 @@
           var cidNow = getCustomerId();
           if (!cidNow) { alert('Please log in to vote.'); return; }
 
-          // collect chosen
           var inputs = box.querySelectorAll('input[name="' + inputName + '"]:checked');
-          var chosenIds = Array.prototype.map.call(inputs, function (el) { return el.value; });
-          if (!chosenIds.length) { alert('Select at least one option'); return; }
+          if (!inputs.length) { alert('Select at least one option'); return; }
 
-          // also provide indexes and mongo subdoc ids just in case the API needs them
+          // Collect chosen values
+          var chosenValues = Array.prototype.map.call(inputs, function (el) { return el.value; });
           var chosenIdx = Array.prototype.map.call(inputs, function (el) { return parseInt(el.getAttribute('data-idx'), 10); });
           var chosenMongoIds = Array.prototype.map.call(inputs, function (el) { return el.getAttribute('data-mongoid'); }).filter(Boolean);
 
-          voteBtn.disabled = true;
-
-          // send a payload that satisfies strict/legacy handlers
+          // Build payload depending on whether IDs were available
           var body = {
             pollId: pollId,
             threadId: threadId,
-
-            // preferred (IDs): we now send the `id` we rendered as value
-            optionId: chosenIds[0],
-            optionIds: chosenIds,
-            option_id: chosenIds[0],
-            option_ids: chosenIds,
-
-            // fallbacks (indexes and mongo _ids)
-            optionIndex: chosenIdx[0],
-            optionIndexes: chosenIdx,
-            option_index: chosenIdx[0],
-            option_indexes: chosenIdx,
-            mongoOptionId: chosenMongoIds[0],
-            mongoOptionIds: chosenMongoIds,
-
-            // identity (support both keys)
             customer_id: cidNow,
             customerId: cidNow,
-
-            // allow changing vote
-            replace: true,
-            update: true,
-            mode: 'replace'
+            replace: true, update: true, mode: 'replace'
           };
 
-          api('/polls/' + encodeURIComponent(threadId) + '/vote', {
-            method: 'POST',
-            body: body
-          })
+          if (idsAvailable) {
+            body.optionId = chosenValues[0];
+            body.option_id = chosenValues[0];
+            body.optionIds = chosenValues;
+            body.option_ids = chosenValues;
+          } else {
+            // Do NOT include optionId fields when server hid IDs
+            body.optionIndex = chosenIdx[0];
+            body.option_index = chosenIdx[0];
+            body.optionIndexes = chosenIdx;
+            body.option_indexes = chosenIdx;
+          }
+
+          // Always include these as fallbacks
+          if (chosenIdx.length) {
+            body.index = chosenIdx[0];
+            body.indexes = chosenIdx;
+          }
+          if (chosenMongoIds.length) {
+            body.mongoOptionId = chosenMongoIds[0];
+            body.mongoOptionIds = chosenMongoIds;
+          }
+          // Extra aliases some handlers expect
+          body.option = body.optionId || body.optionIndex;
+          body.options = (body.optionIds || body.optionIndexes || []);
+
+          voteBtn.disabled = true;
+
+          api('/polls/' + encodeURIComponent(threadId) + '/vote', { method: 'POST', body: body })
             .then(function (out) {
               if (!out || !out.success) throw new Error((out && out.message) || 'Vote failed');
-
-              // remember that this viewer has voted so counts show next render
               localStorage.setItem(votedKey, '1');
-
-              // re-fetch to show updated counts immediately
               return api('/polls/' + encodeURIComponent(threadId), {
-                qs: { viewerHasVoted: 'true', includeCounts: 'true', _: Date.now() }
+                qs: { viewerHasVoted: 'true', includeCounts: 'true', withCounts: 'true', _: Date.now() }
               });
             })
             .then(function (fresh) {
               if (!fresh || !fresh.success || !fresh.poll) return;
-              // simple re-render with counts visible
               var p = fresh.poll;
               var html = (p.options || []).map(function (o, i) {
-                var idPref = String(o.id || o._id || i);
+                var v = String(o.id || o._id || i);
                 var cnt = ' <span class="community-meta">(' + optCount(o) + ')</span>';
                 return (
                   '<label class="community-poll-option" style="display:block;margin:4px 0">' +
-                  '<input type="' + (p.multipleAllowed ? 'checkbox' : 'radio') + '" name="' + inputName + '" value="' + idPref + '" disabled>' +
+                  '<input type="' + (p.multipleAllowed ? 'checkbox' : 'radio') + '" name="' + inputName + '" value="' + v + '" disabled>' +
                   ' ' + escapeHtml(o.text || '') + cnt +
                   '</label>'
                 );
@@ -907,10 +906,6 @@
       })
       .catch(function () { box.innerHTML = ''; });
   }
-
-
-
-
 
   /* ---------- inline replies ---------- */
   function wireCommentReplies(container, cid, SHOP) {
