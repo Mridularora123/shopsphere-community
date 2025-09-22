@@ -968,69 +968,82 @@ router.get('/polls', async (_req, res, next) => {
   }
 });
 
-// POST /admin/polls/create
+// POST /admin/polls/create  — create poll, optionally auto-create a “poll thread”
 router.post('/polls/create', async (req, res, next) => {
   try {
-    const { shop, threadId = '', question, options } = req.body || {};
-    const form = { shop, threadId, question, options };
+    const body = req.body || {};
+    const form = {
+      shop: (body.shop || '').trim(),
+      threadId: (body.threadId || '').trim(),
+      question: (body.question || '').trim(),
+      options: (body.options || '').trim(),
+    };
     const errors = {};
 
-    // (…existing validation & parsed "options" code…)
+    // --- validation --------------------------------------------------------
+    if (!isLikelyShopDomain(form.shop)) {
+      errors.shop = 'Enter a valid Shopify domain (e.g., your-store.myshopify.com).';
+    }
+    if (form.threadId && !isValidObjectId(form.threadId)) {
+      errors.threadId = 'Leave blank to auto-create a thread, or enter a valid 24-char Thread ID.';
+    }
+    if (!form.question) {
+      errors.question = 'Question is required.';
+    }
+
+    // parse options: one per line, trim, de-dupe, min 2
+    const optionLines = form.options
+      .split(/\r?\n/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    const uniq = Array.from(new Set(optionLines));
+    if (uniq.length < 2) {
+      errors.options = 'Add at least two options (one per line).';
+    }
+    const parsedOptions = uniq.map(text => ({ text: sanitizeHtml(text, { allowedTags: [], allowedAttributes: {} }) }));
 
     if (Object.keys(errors).length) {
-      return await renderPollsPage(res, { form, errors });
+      return renderPollsPage(res, { form, errors });
     }
 
-    // ✅ NEW: if no threadId provided, create a dedicated "poll thread"
-    let threadObjectId = threadId && threadId.trim();
+    // --- ensure thread (create one if none supplied) -----------------------
+    let threadObjectId = form.threadId;
     if (!threadObjectId) {
-      const threadDoc = await Thread.create({
-        shop: (shop || '').trim(),
-        title: String(question).slice(0, 160),
-        body: '',                         // keep body empty; poll is the content
-        tags: ['poll'],                   // helps the widget badge/style it
-        status: 'approved',               // publish immediately (admin-created)
+      const t = await Thread.create({
+        shop: form.shop,
+        title: String(form.question).slice(0, 160),
+        body: '',                       // poll is the content
+        tags: ['poll'],
+        status: 'approved',             // publish immediately (admin-created)
         createdAt: new Date(),
-        author: {
-          // lightweight “system/admin” author; adjust if you store admin user ids
-          displayName: 'Admin',
-          customerId: null
-        }
+        author: { displayName: 'Admin', customerId: null },
       });
-      threadObjectId = String(threadDoc._id);
+      threadObjectId = String(t._id);
     }
 
-    // Create Poll, linked to the (existing or newly created) thread
+    // --- create poll -------------------------------------------------------
     await Poll.create({
-      shop: (shop || '').trim(),
-      threadId: threadObjectId,          // <-- link to thread
-      question: sanitizeHtml(String(question).slice(0, 160), {
-        allowedTags: [], allowedAttributes: {}
-      }),
-      options: parsed
+      shop: form.shop,
+      threadId: threadObjectId,
+      question: sanitizeHtml(String(form.question).slice(0, 160), { allowedTags: [], allowedAttributes: {} }),
+      options: parsedOptions,
+      status: 'open',
+      createdAt: new Date(),
     });
 
     return res.redirect('/admin/polls');
   } catch (e) {
-    // (…existing error handling…)
-    const body = req.body || {};
     const form = {
-      shop: body.shop || '',
-      threadId: body.threadId || '',
-      question: body.question || '',
-      options: body.options || '',
+      shop: (req.body?.shop || '').trim(),
+      threadId: (req.body?.threadId || '').trim(),
+      question: (req.body?.question || '').trim(),
+      options: (req.body?.options || '').trim(),
     };
-    const errors = {};
-
-    if (e?.name === 'CastError' && e?.path === 'threadId') {
-      errors.threadId = 'Enter a valid Thread ID (24-char Mongo ObjectId) or leave blank.';
-      return renderPollsPage(res, { form, errors });
-    }
-
-    errors.global = 'Could not create poll. Please correct the fields and try again.';
+    const errors = { global: 'Could not create poll. Please correct the fields and try again.' };
     return renderPollsPage(res, { form, errors });
   }
 });
+
 
 
 // POST /polls/:id/close
