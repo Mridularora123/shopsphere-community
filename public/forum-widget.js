@@ -126,8 +126,6 @@
       '.hl-meta{color:var(--c-mut);font-size:12px;margin-top:2px}',
 
       /* Controls (tabs + filters + bell) */
-      '.filters-label{font-weight:700;font-size:12px;color:var(--c-mut);margin-left:8px;margin-right:6px;text-transform:uppercase;letter-spacing:.08em}',
-      '.date-hint{color:var(--c-mut);font-size:12px;margin-left:6px}',
       '.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0;position:relative}',
       '.tabbar{display:flex;gap:6px;background:#fff;border:1px solid var(--c-border);border-radius:999px;padding:3px}',
       '.tab{padding:8px 13px;border-radius:999px;cursor:pointer;color:var(--c-text);font-weight:600}',
@@ -446,34 +444,23 @@
       '      <button id="tab-hot" class="tab" role="tab" aria-selected="false">Hot</button>',
       '      <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
       '    </div>',
-
-      // NEW: Filters label
-      '    <span class="filters-label" aria-hidden="true">Filters</span>',
-
       '    <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
       '      <option value="day">Day</option>',
       '      <option value="week" selected>Week</option>',
       '      <option value="month">Month</option>',
       '    </select>',
-
-      // From / To — clarify that this filters threads within the dates
       '    <label class="field" style="width:auto">',
       '      <span class="label">From</span>',
-      '      <input id="forum-from" type="date" class="community-input" aria-label="From date" aria-describedby="date-hint" style="width:auto" />',
+      '      <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto" />',
       '    </label>',
       '    <label class="field" style="width:auto">',
       '      <span class="label">To</span>',
-      '      <input id="forum-to" type="date" class="community-input" aria-label="To date" aria-describedby="date-hint" style="width:auto" />',
+      '      <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto" />',
       '    </label>',
-
-      // NEW: a small hint for accessibility & clarity
-      '    <span id="date-hint" class="date-hint">Search threads within these dates</span>',
-
       '    <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
       '    <button id="notif-btn" class="community-btn" type="button" style="margin-left:auto;position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
       '    <div id="notif-panel" class="rail-card" style="display:none;position:absolute;right:0;top:44px;max-width:380px;z-index:50"></div>',
       '  </div>',
-
 
       // COMPOSE
       '  <div id="rte-bar"></div>',
