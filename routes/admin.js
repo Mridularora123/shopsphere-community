@@ -216,7 +216,7 @@ async function renderPollsPage(res, { form = {}, errors = {} } = {}) {
       ${err.shop}
     </div>
     <div style="width:100%">
-      <input class="input" name="threadId" placeholder="thread-Id(Optional) Leave blank to auto-create a thread, or enter a valid 24-char Thread ID" />
+      <input class="input" name="threadId" placeholder="thread-Id(Optional)" value="${f.threadId}" />
       ${err.threadId}
     </div>
     <div style="width:100%">
