@@ -1177,7 +1177,8 @@ router.post('/polls/:id/delete', async (req, res, next) => {
 
     // 2) delete any votes tied to this poll (adjust field if your Vote schema differs)
     try {
-      await Vote.deleteMany({ pollId: poll._id });
+      const { default: PollVoter } = await import('../models/PollVoter.js');
+      await PollVoter.deleteMany({ pollId: poll._id });
     } catch (_) {
       // ignore vote cleanup failures so admin UI never breaks
     }

@@ -250,6 +250,135 @@ router.post('/threads', async (req, res) => {
   });
 });
 
+/* ------------------------------ Polls ---------------------------------- */
+
+// helper: map incoming option ids → option indexes
+function mapIdsToIndexes(poll, ids) {
+  const set = new Set((ids || []).map(String));
+  return (poll.options || []).reduce((acc, o, i) => {
+    const oid = String(o?.id ?? o?._id ?? '');
+    if (oid && set.has(oid)) acc.push(i);
+    return acc;
+  }, []);
+}
+function toIndexArray(v) {
+  const arr = Array.isArray(v) ? v : [v];
+  return arr
+    .map(n => Number(n))
+    .filter(n => Number.isInteger(n) && n >= 0);
+}
+function dedupeNums(a) {
+  return Array.from(new Set(a)).sort((x, y) => x - y);
+}
+async function countsForPoll(poll) {
+  const rows = await PollVoter.aggregate([
+    { $match: { pollId: poll._id } },
+    { $unwind: '$selections' },
+    { $group: { _id: '$selections', c: { $sum: 1 } } }
+  ]);
+  const byIdx = new Map(rows.map(r => [r._id, r.c]));
+  return (poll.options || []).map((_o, i) => byIdx.get(i) || 0);
+}
+
+/** GET poll for a thread (optionally include counts) */
+router.get('/polls/:threadId', async (req, res) => {
+  try {
+    const shop = req.shop;
+    const threadId = req.params.threadId;
+    const viewerHasVoted = /^true$/i.test(String(req.query.viewerHasVoted || ''));
+    const includeCountsFlag =
+      /^true|1$/i.test(String(
+        req.query.includeCounts ||
+        req.query.withCounts ||
+        req.query.include_counts || ''
+      ));
+
+    const poll = await Poll.findOne({ shop, threadId }).lean();
+    if (!poll) return res.json({ success: true, poll: null });
+
+    const shouldShowCounts =
+      viewerHasVoted || poll.status === 'closed' || includeCountsFlag;
+
+    let counts = [];
+    if (shouldShowCounts) counts = await countsForPoll(poll);
+
+    const options = (poll.options || []).map((o, i) => ({
+      _id: o._id,
+      id: o.id ?? o._id,         // expose whichever exists
+      text: o.text || '',
+      votes: counts[i] || 0
+    }));
+
+    res.json({
+      success: true,
+      poll: { ...poll, options, viewerHasVoted }
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+/** POST a vote for a poll (accept ids OR indexes) */
+router.post('/polls/:threadId/vote', async (req, res) => {
+  try {
+    const shop = req.shop;
+    const threadId = req.params.threadId;
+    const {
+      customer_id, customerId,
+      optionId, optionIds,
+      optionIndex, optionIndexes,
+      mode
+    } = req.body || {};
+    const uid = String(customerId || customer_id || '').trim();
+    if (!uid) return res.status(400).json({ success: false, message: 'customer_id required' });
+
+    const poll = await Poll.findOne({ shop, threadId });
+    if (!poll) return res.status(404).json({ success: false, message: 'Poll not found' });
+    if (poll.status === 'closed') return res.status(400).json({ success: false, message: 'Poll is closed' });
+
+    let idx = [];
+    // Prefer ids if present, else indexes
+    if (optionId != null || (optionIds && optionIds.length)) {
+      const ids = Array.isArray(optionIds) ? optionIds : [optionId];
+      idx = mapIdsToIndexes(poll, ids);
+    } else {
+      const raw = optionIndexes != null ? optionIndexes : optionIndex;
+      idx = toIndexArray(raw);
+    }
+
+    if (!idx.length) return res.status(400).json({ success: false, message: 'No option selected' });
+
+    // enforce bounds + single-select
+    idx = idx.filter(i => i >= 0 && i < (poll.options || []).length);
+    if (!poll.multipleAllowed && idx.length > 1) idx = [idx[0]];
+    idx = dedupeNums(idx);
+    if (!idx.length) return res.status(400).json({ success: false, message: 'Invalid selection' });
+
+    // upsert voter doc (one per user per poll)
+    const key = { shop, pollId: poll._id, threadId: poll.threadId || poll._id, customerId: uid };
+    const now = new Date();
+
+    if (poll.multipleAllowed && mode === 'add') {
+      await PollVoter.updateOne(
+        key,
+        { $addToSet: { selections: { $each: idx } }, $setOnInsert: { createdAt: now }, $set: { updatedAt: now } },
+        { upsert: true }
+      );
+    } else {
+      await PollVoter.updateOne(
+        key,
+        { $set: { selections: idx, updatedAt: now }, $setOnInsert: { createdAt: now } },
+        { upsert: true }
+      );
+    }
+
+    res.json({ success: true, voted: true });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+
 /* -------------------------------- Comments ----------------------------- */
 // Create comment (supports threading up to depth 3) + filters + editable window
 router.post('/comments', async (req, res) => {

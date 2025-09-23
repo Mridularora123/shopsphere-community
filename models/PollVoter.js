@@ -1,11 +1,15 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const PollVoterSchema = new mongoose.Schema({
-  pollId: { type: mongoose.Schema.Types.ObjectId, ref: "Poll", index: true },
-  userKey: { type: String, index: true },          // customerId OR device fingerprint
-  optionIds: [String],
-  votedAt: { type: Date, default: Date.now },
-}, { timestamps: true });
+  shop: { type: String, index: true },
+  threadId: { type: mongoose.Schema.Types.ObjectId, index: true },
+  pollId: { type: mongoose.Schema.Types.ObjectId, index: true },
+  customerId: { type: String, index: true },
+  selections: { type: [Number], default: [] }, // store option INDEXES
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+}, { collection: 'poll_voters' });
 
-PollVoterSchema.index({ pollId:1, userKey:1 }, { unique: true }); // one vote record per user per poll
-export default mongoose.model("PollVoter", PollVoterSchema);
+PollVoterSchema.index({ shop: 1, pollId: 1, customerId: 1 }, { unique: true });
+
+export default mongoose.models.PollVoter || mongoose.model('PollVoter', PollVoterSchema);

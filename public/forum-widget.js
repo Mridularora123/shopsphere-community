@@ -353,16 +353,16 @@
     var t; var timeout = new Promise(function (_, rej) { t = setTimeout(function () { rej(new Error('Request timed out')); }, ms || TIMEOUT_MS); });
     return Promise.race([p, timeout]).finally(function () { clearTimeout(t); });
   }
-  function toQuery(params) {
-    if (!params) return '';
-    var parts = [];
-    Object.keys(params).forEach(function (k) {
-      var v = params[k];
-      if (v == null || v === '') return;
-      parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v));
-    });
-    return parts.length ? ('?' + parts.join('&')) : ''; // (will be fixed below)
-  }
+  // function toQuery(params) {
+  //   if (!params) return '';
+  //   var parts = [];
+  //   Object.keys(params).forEach(function (k) {
+  //     var v = params[k];
+  //     if (v == null || v === '') return;
+  //     parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v));
+  //   });
+  //   return parts.length ? ('?' + parts.join('&')) : '';
+  // }
   // Fix the small typo above by redefining toQuery cleanly:
   function toQuery(params) {
     if (!params) return '';
