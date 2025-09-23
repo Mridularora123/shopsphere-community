@@ -98,6 +98,7 @@
       /* Section heads */
       '.section-head{display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px 0}',
       '.section-head h3{margin:0;font-size:18px;font-weight:600;color:var(--c-text)}',
+      '.post-thread-heading{margin:0;font-size:18px;font-weight:600;color:var(--c-text)}',
       '.see-more{font-size:13px;color:var(--c-accent-2);text-decoration:underline;cursor:pointer}',
 
       /* Grid: Top Categories + Highlights */
@@ -563,7 +564,7 @@
 
 
       // COMPOSE
-      '  <h3>Post Thread</h3>',
+      '  <h3 class="post-thread-heading">Post Thread</h3>',
       '  <div id="rte-bar"></div>',
       '  <textarea id="thread-body" class="community-textarea" rows="4" placeholder="Write details... Supports Markdown for headings, lists, links, and images."></textarea>',
       '  <div id="thread-preview" style="display:none;background:var(--c-soft);border:1px solid var(--c-border);padding:10px;border-radius:10px;"></div>',
