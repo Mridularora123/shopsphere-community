@@ -98,7 +98,7 @@
       /* Section heads */
       '.section-head{display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px 0}',
       '.section-head h3{margin:0;font-size:18px;font-weight:600;color:var(--c-text)}',
-      '.post-thread-heading{margin-top: 30px;font-size:18px;font-weight:600;color:var(--c-text)}',
+      '.post-thread-heading{margin-top: 30px;font-size:18px;font-weight:600;color:var(--c-text);font-family: "Fraunces", serif}',
       '.see-more{font-size:13px;color:var(--c-accent-2);text-decoration:underline;cursor:pointer}',
 
       /* Grid: Top Categories + Highlights */
