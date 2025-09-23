@@ -178,6 +178,9 @@ async function renderPollsPage(res, { form = {}, errors = {} } = {}) {
       <form action="/admin/polls/${p._id}/close" method="post">
         <button class="btn" type="submit">Close</button>
       </form>
+      <form action="/admin/polls/${p._id}/delete" method="post" onsubmit="return confirm('Delete this poll?');">
+        <button class="btn danger" type="submit">Delete</button>
+      </form>
     </div>
   </div>
 </li>`;
