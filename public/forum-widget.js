@@ -140,7 +140,7 @@
       '.filters-block{background:#fff;border:1px solid var(--c-border);border-radius:12px;padding:10px;box-shadow:var(--shadow)}',
       '.filters-head{font-weight:700;font-size:12px;color:var(--c-mut);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}',
       '.filters-inline{display:flex;flex-wrap:wrap;gap:8px;align-items:center}',
-      '.date-hint{font-size:12px;color:var(--c-mut);margin:2px 0 6px 0}',
+      '.date-hint{font-size:15px;color:var(--c-mut);margin:2px 0 6px 0}',
 
       /* Keep input/button look consistent */
       '.community-input,.community-textarea{flex:1 1 auto;padding:11px 12px;border:1px solid var(--c-border);border-radius:12px;background:#fff;min-width:0}',
@@ -508,7 +508,6 @@
       '        <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
       '      </div>',
 
-      '      <div class="date-inline-wrapper">',
       '      <div class="date-inline">',
       '        <label class="field" style="width:auto">',
       '          <span class="label">From</span>',
@@ -524,8 +523,6 @@
       '          <option value="month">Month</option>',
       '        </select>',
       '        <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
-      '      </div>',
-      '      <div class="date-hint">Search threads within these dates</div>',
       '      </div>',
 
       '      <div class="notif-wrap">',
