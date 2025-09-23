@@ -151,7 +151,7 @@
       '@media (max-width:700px){.controls-row{gap:6px}.tabbar{width:100%}.filters-inline{gap:6px}}',
 
       /* Filters header above tabs */
-      '.filters-label{font-weight:700;font-size:12px;color:var(--c-mut);margin:10px 0 6px 2px;text-transform:uppercase;letter-spacing:.08em}',
+      '.filters-label{font-size: 18px;font-weight: 600;color: var(--c-text);font-family:"Fraunces",serif}',
 
       /* Dates hint above inputs */
       '.date-hint{color:var(--c-mut);font-size:12px;margin:10px 0 6px 2px}',
@@ -176,7 +176,7 @@
       '@media (max-width:900px){.controls-row{flex-direction:column;align-items:stretch}.notif-wrap{margin-left:0}}',
 
       /* header line above the controls row */
-      '.controls-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 6px}',
+      '.controls-head{display:flex;align-items:center;justify-content:space-between}',
       '.controls-head .filters-label{margin:0}',
       '.controls-head .date-hint{margin:0}',
 
@@ -508,6 +508,7 @@
       '        <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
       '      </div>',
 
+      '      <div class="date-inline-wrapper">',
       '      <div class="date-inline">',
       '        <label class="field" style="width:auto">',
       '          <span class="label">From</span>',
@@ -523,6 +524,8 @@
       '          <option value="month">Month</option>',
       '        </select>',
       '        <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
+      '      </div>',
+      '      <div class="date-hint">Search threads within these dates</div>',
       '      </div>',
 
       '      <div class="notif-wrap">',
