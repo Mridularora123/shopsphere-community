@@ -300,7 +300,7 @@ router.get('/threads/new', (_req, res) => {
   const fallback = shell('New Thread', `
 <div class="card">
   <h2>Create Thread</h2>
-  <p class="small">Tip: shop looks like <code>your-store.myshopify.com</code>.</p>
+  <p>Use shop domain : 4amjw1-pc.myshopify.com</p>
   <form method="post" action="/admin/threads/create" class="kv" style="max-width:720px">
     <label>Shop</label>
     <input class="input" name="shop" required placeholder="your-store.myshopify.com">
