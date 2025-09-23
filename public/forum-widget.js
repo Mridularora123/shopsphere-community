@@ -195,6 +195,11 @@
       '.date-hint--mobile{display:none}',
       '@media (max-width:850px){.date-hint--desktop{display:none}.date-hint--mobile{display:block}}',
 
+      /* Notification panel width */
+      '#notif-panel{min-width:320px;width:clamp(320px,40vw,420px)}',
+      '@media (max-width:850px){#notif-panel{width:min(92vw,420px)}}',
+
+
 
       /* desktop: already inline via your existing rules */
 
@@ -549,7 +554,7 @@
 
       '      <div class="notif-wrap">',
       '        <button id="notif-btn" class="community-btn" type="button">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
-      '        <div id="notif-panel" class="rail-card" style="display:none;position:absolute;right:0;top:44px;max-width:380px;z-index:50"></div>',
+      '        <div id="notif-panel" class="rail-card" style="display:none;position:absolute;right:0;top:44px;min-width:320px;width:clamp(320px,40vw,420px);max-width:420px;z-index:50"></div>',
       '      </div>',
 
       '    </div>',
