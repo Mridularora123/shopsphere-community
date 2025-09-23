@@ -563,6 +563,7 @@
 
 
       // COMPOSE
+      '  <h3>Post Thread</h3>',
       '  <div id="rte-bar"></div>',
       '  <textarea id="thread-body" class="community-textarea" rows="4" placeholder="Write details... Supports Markdown for headings, lists, links, and images."></textarea>',
       '  <div id="thread-preview" style="display:none;background:var(--c-soft);border:1px solid var(--c-border);padding:10px;border-radius:10px;"></div>',
