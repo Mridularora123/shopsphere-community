@@ -154,7 +154,7 @@
       '.filters-label{font-size: 18px;font-weight: 600;color: var(--c-text);font-family:"Fraunces",serif}',
 
       /* Dates hint above inputs */
-      '.date-hint{color:var(--c-mut);font-size:12px;margin:10px 0 6px 2px}',
+      '.date-hint{color:var(--c-mut);font-size:15px;margin:10px 0 6px 2px}',
 
       /* Filters area layout */
       '.filters-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}',
