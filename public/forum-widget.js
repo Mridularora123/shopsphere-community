@@ -175,6 +175,20 @@
       /* responsive: stack on narrow screens */
       '@media (max-width:900px){.controls-row{flex-direction:column;align-items:stretch}.notif-wrap{margin-left:0}}',
 
+      /* header line above the controls row */
+      '.controls-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 6px}',
+      '.controls-head .filters-label{margin:0}',
+      '.controls-head .date-hint{margin:0}',
+
+      /* one-line layout for tabs + dates + bell */
+      '.controls-row{display:flex;gap:12px;align-items:center}',
+      '.controls-row .tabbar{flex:0 0 auto}',
+      '.date-inline{display:flex;gap:8px;align-items:center;flex:1;flex-wrap:wrap}',
+      '.date-inline .community-input{min-width:180px}',
+      '.notif-wrap{margin-left:auto;position:relative}',
+
+      /* responsive stacking */
+      '@media (max-width:900px){.controls-row{flex-direction:column;align-items:stretch}.notif-wrap{margin-left:0}}',
 
 
 
@@ -478,10 +492,13 @@
       // CONTROLS (tabs + filters + bell)
       '  <div class="controls">',
 
-      // label ABOVE the tabs (as requested)
-      '    <div class="filters-label">Filters</div>',
+      // single header line
+      '    <div class="controls-head">',
+      '      <div class="filters-label">Filters</div>',
+      '      <div class="date-hint">Search threads within these dates</div>',
+      '    </div>',
 
-      // one row: tabs | date block | bell
+      // one row: tabs | dates | apply | bell (all inline)
       '    <div class="controls-row">',
 
       '      <div class="tabbar" role="tablist" aria-label="Sort tabs">',
@@ -491,24 +508,21 @@
       '        <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
       '      </div>',
 
-      '      <div class="date-block">',
-      '        <div class="date-hint">Search threads within these dates</div>',
-      '        <div class="date-inline">',
-      '          <label class="field" style="width:auto">',
-      '            <span class="label">From</span>',
-      '            <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto" />',
-      '          </label>',
-      '          <label class="field" style="width:auto">',
-      '            <span class="label">To</span>',
-      '            <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto" />',
-      '          </label>',
-      '          <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
-      '            <option value="day">Day</option>',
-      '            <option value="week" selected>Week</option>',
-      '            <option value="month">Month</option>',
-      '          </select>',
-      '          <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
-      '        </div>',
+      '      <div class="date-inline">',
+      '        <label class="field" style="width:auto">',
+      '          <span class="label">From</span>',
+      '          <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto" />',
+      '        </label>',
+      '        <label class="field" style="width:auto">',
+      '          <span class="label">To</span>',
+      '          <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto" />',
+      '        </label>',
+      '        <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
+      '          <option value="day">Day</option>',
+      '          <option value="week" selected>Week</option>',
+      '          <option value="month">Month</option>',
+      '        </select>',
+      '        <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
       '      </div>',
 
       '      <div class="notif-wrap">',
@@ -517,8 +531,8 @@
       '      </div>',
 
       '    </div>',
-
       '  </div>',
+
 
 
       // COMPOSE
