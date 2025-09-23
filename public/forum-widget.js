@@ -150,6 +150,16 @@
       /* Responsive tweak: stack the tabbar and bell neatly on small screens */
       '@media (max-width:700px){.controls-row{gap:6px}.tabbar{width:100%}.filters-inline{gap:6px}}',
 
+      /* Filters header above tabs */
+      '.filters-label{font-weight:700;font-size:12px;color:var(--c-mut);margin:10px 0 6px 2px;text-transform:uppercase;letter-spacing:.08em}',
+
+      /* Dates hint above inputs */
+      '.date-hint{color:var(--c-mut);font-size:12px;margin:10px 0 6px 2px}',
+
+      /* Filters area layout */
+      '.filters-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}',
+      '.filters-inline .community-input{min-width:220px}',
+
 
 
       /* Stream grid (list + rail) */
@@ -452,33 +462,11 @@
       // CONTROLS (tabs + filters + bell)
       '  <div class="controls">',
 
-      // Filters block (now ABOVE the tabs)
-      '    <div class="filters-block">',
-      '      <div class="filters-head">Filters</div>',
-      '      <div class="date-hint">Search threads within these dates</div>',
-      '      <div class="filters-inline">',
-      '        <label class="field" style="width:auto">',
-      '          <span class="label">From</span>',
-      '          <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto" />',
-      '        </label>',
-      '        <label class="field" style="width:auto">',
-      '          <span class="label">To</span>',
-      '          <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto" />',
-      '        </label>',
-
-      // period select stays hidden unless “Top” tab is active
-      '        <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
-      '          <option value="day">Day</option>',
-      '          <option value="week" selected>Week</option>',
-      '          <option value="month">Month</option>',
-      '        </select>',
-
-      '        <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
-      '      </div>',
-      '    </div>',
+      // Small label above the tabs (as requested)
+      '    <div class="filters-label">Filters</div>',
 
       // Tabs row + bell
-      '    <div class="controls-row">',
+      '    <div class="controls-row" style="display:flex;gap:8px;align-items:center;position:relative">',
       '      <div class="tabbar" role="tablist" aria-label="Sort tabs">',
       '        <button id="tab-latest" class="tab active" role="tab" aria-selected="true">Latest</button>',
       '        <button id="tab-top" class="tab" role="tab" aria-selected="false">Top</button>',
@@ -492,7 +480,30 @@
       '      <div id="notif-panel" class="rail-card" style="display:none;position:absolute;right:0;top:44px;max-width:380px;z-index:50"></div>',
       '    </div>',
 
+      // Dates block — hint above the inputs
+      '    <div class="date-hint">Search threads within these dates</div>',
+      '    <div class="filters-inline">',
+      '      <label class="field" style="width:auto">',
+      '        <span class="label">From</span>',
+      '        <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto" />',
+      '      </label>',
+      '      <label class="field" style="width:auto">',
+      '        <span class="label">To</span>',
+      '        <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto" />',
+      '      </label>',
+
+      // Period select (only visible when “Top” is active; JS already handles this)
+      '      <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
+      '        <option value="day">Day</option>',
+      '        <option value="week" selected>Week</option>',
+      '        <option value="month">Month</option>',
+      '      </select>',
+
+      '      <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
+      '    </div>',
+
       '  </div>',
+
 
 
 
