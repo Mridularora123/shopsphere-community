@@ -126,20 +126,30 @@
       '.hl-meta{color:var(--c-mut);font-size:12px;margin-top:2px}',
 
       /* Controls (tabs + filters + bell) */
-      '.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0;position:relative}',
+      '.controls{display:flex;flex-direction:column;gap:12px;margin:14px 0;position:relative}',
+
+      /* Row that holds the tabbar and bell */
+      '.controls-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}',
+
+      /* Tabbar stays the same */
       '.tabbar{display:flex;gap:6px;background:#fff;border:1px solid var(--c-border);border-radius:999px;padding:3px}',
       '.tab{padding:8px 13px;border-radius:999px;cursor:pointer;color:var(--c-text);font-weight:600}',
       '.tab.active{background:#9f92c6;color:#fff;border:1px solid transparent}',
 
+      /* Filters card */
+      '.filters-block{background:#fff;border:1px solid var(--c-border);border-radius:12px;padding:10px;box-shadow:var(--shadow)}',
+      '.filters-head{font-weight:700;font-size:12px;color:var(--c-mut);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}',
+      '.filters-inline{display:flex;flex-wrap:wrap;gap:8px;align-items:center}',
+      '.date-hint{font-size:12px;color:var(--c-mut);margin:2px 0 6px 0}',
+
+      /* Keep input/button look consistent */
       '.community-input,.community-textarea{flex:1 1 auto;padding:11px 12px;border:1px solid var(--c-border);border-radius:12px;background:#fff;min-width:0}',
-      '.community-textarea{width:100%}',
       '.community-btn{color:#111!important;padding:10px 14px;border:1px solid var(--c-border);border-radius:999px;background:#fff;cursor:pointer;line-height:1;font-weight:700}',
       '.community-btn:hover{box-shadow:0 0 0 4px rgba(0,0,0,.04)}',
-      '.primary{background:linear-gradient(90deg,var(--c-accent),var(--c-accent-2));color:#fff;border-color:transparent}',
-      '.primary:hover{box-shadow:0 0 0 5px color-mix(in oklab,var(--c-accent) 25%,#0000)}',
-      '.badge{display:inline-block;background:#eef;border:1px solid #dde;padding:2px 6px;border-radius:6px;font-size:11px;margin-left:6px}',
-      '.filters-label{font-weight:700;font-size:12px;color:var(--c-mut);margin-left:8px;margin-right:6px;text-transform:uppercase;letter-spacing:.08em}',
-      '.date-hint{color:var(--c-mut);font-size:12px;margin-left:6px}',
+
+      /* Responsive tweak: stack the tabbar and bell neatly on small screens */
+      '@media (max-width:700px){.controls-row{gap:6px}.tabbar{width:100%}.filters-inline{gap:6px}}',
+
 
 
       /* Stream grid (list + rail) */
@@ -441,40 +451,49 @@
 
       // CONTROLS (tabs + filters + bell)
       '  <div class="controls">',
-      '    <div class="tabbar" role="tablist" aria-label="Sort tabs">',
-      '      <button id="tab-latest" class="tab active" role="tab" aria-selected="true">Latest</button>',
-      '      <button id="tab-top" class="tab" role="tab" aria-selected="false">Top</button>',
-      '      <button id="tab-hot" class="tab" role="tab" aria-selected="false">Hot</button>',
-      '      <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
+
+      // Filters block (now ABOVE the tabs)
+      '    <div class="filters-block">',
+      '      <div class="filters-head">Filters</div>',
+      '      <div class="date-hint">Search threads within these dates</div>',
+      '      <div class="filters-inline">',
+      '        <label class="field" style="width:auto">',
+      '          <span class="label">From</span>',
+      '          <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto" />',
+      '        </label>',
+      '        <label class="field" style="width:auto">',
+      '          <span class="label">To</span>',
+      '          <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto" />',
+      '        </label>',
+
+      // period select stays hidden unless “Top” tab is active
+      '        <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
+      '          <option value="day">Day</option>',
+      '          <option value="week" selected>Week</option>',
+      '          <option value="month">Month</option>',
+      '        </select>',
+
+      '        <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
+      '      </div>',
       '    </div>',
 
-      // NEW: visible label for the filter area
-      '    <span class="filters-label" aria-hidden="true">Filters</span>',
+      // Tabs row + bell
+      '    <div class="controls-row">',
+      '      <div class="tabbar" role="tablist" aria-label="Sort tabs">',
+      '        <button id="tab-latest" class="tab active" role="tab" aria-selected="true">Latest</button>',
+      '        <button id="tab-top" class="tab" role="tab" aria-selected="false">Top</button>',
+      '        <button id="tab-hot" class="tab" role="tab" aria-selected="false">Hot</button>',
+      '        <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
+      '      </div>',
 
-      '    <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
-      '      <option value="day">Day</option>',
-      '      <option value="week" selected>Week</option>',
-      '      <option value="month">Month</option>',
-      '    </select>',
+      '      <button id="notif-btn" class="community-btn" type="button" style="margin-left:auto;position:relative">',
+      '        🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span>',
+      '      </button>',
+      '      <div id="notif-panel" class="rail-card" style="display:none;position:absolute;right:0;top:44px;max-width:380px;z-index:50"></div>',
+      '    </div>',
 
-      '    <label class="field" style="width:auto">',
-      '      <span class="label">From</span>',
-      // NEW: aria-describedby so SRs read the hint
-      '      <input id="forum-from" type="date" class="community-input" aria-label="From date" aria-describedby="date-hint" style="width:auto" />',
-      '    </label>',
-      '    <label class="field" style="width:auto">',
-      '      <span class="label">To</span>',
-      // NEW: aria-describedby so SRs read the hint
-      '      <input id="forum-to" type="date" class="community-input" aria-label="To date" aria-describedby="date-hint" style="width:auto" />',
-      '    </label>',
-
-      // NEW: concise explanatory hint
-      '    <span id="date-hint" class="date-hint">Search threads within these dates</span>',
-
-      '    <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
-      '    <button id="notif-btn" class="community-btn" type="button" style="margin-left:auto;position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
-      '    <div id="notif-panel" class="rail-card" style="display:none;position:absolute;right:0;top:44px;max-width:380px;z-index:50"></div>',
       '  </div>',
+
 
 
       // COMPOSE
