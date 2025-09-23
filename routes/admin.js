@@ -1166,6 +1166,49 @@ router.post('/polls/:id/close', async (req, res, next) => {
   }
 });
 
+// POST /admin/polls/:id/delete — hard delete poll (+cleanup)
+router.post('/polls/:id/delete', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // 1) delete the poll
+    const poll = await Poll.findByIdAndDelete(id);
+    if (!poll) return goBack(req, res, '/admin/polls');
+
+    // 2) delete any votes tied to this poll (adjust field if your Vote schema differs)
+    try {
+      await Vote.deleteMany({ pollId: poll._id });
+    } catch (_) {
+      // ignore vote cleanup failures so admin UI never breaks
+    }
+
+    // 3) optionally notify the thread author that the poll was removed
+    try {
+      if (poll.threadId) {
+        const t = await Thread.findById(poll.threadId).select('shop author.customerId').lean();
+        if (t?.author?.customerId) {
+          await Notification.create({
+            shop: t.shop,
+            userId: String(t.author.customerId),
+            type: 'poll_deleted',
+            targetType: 'poll',
+            targetId: String(poll._id),
+            payload: { threadId: String(poll.threadId) }
+          });
+        }
+      }
+    } catch (_) {
+      // non-fatal
+    }
+
+    // 4) back to polls list
+    goBack(req, res, '/admin/polls');
+  } catch (e) {
+    next(e);
+  }
+});
+
+
 // GET /admin/announce - simple form
 router.get('/announce', (req, res) => {
   const shop = req.query.shop || '';
