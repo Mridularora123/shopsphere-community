@@ -462,7 +462,7 @@
 
       '  <div class="calender-wrapper">',
       '    <span id="date-hint" class="date-hint">Search threads within these dates</span>',
-      '  <div>',
+      '  <div class="calender-dates">',
       '    <label class="field" style="width:auto">',
       '      <span class="label">From</span>',
       // NEW: aria-describedby so SRs read the hint
