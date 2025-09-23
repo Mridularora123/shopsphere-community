@@ -441,18 +441,15 @@
 
       // CONTROLS (tabs + filters + bell)
       '  <div class="controls">',
-      '  <div id="filter-wrapper">',
-      '    <span class="filters-label" aria-hidden="true">Filters</span>',
       '    <div class="tabbar" role="tablist" aria-label="Sort tabs">',
       '      <button id="tab-latest" class="tab active" role="tab" aria-selected="true">Latest</button>',
       '      <button id="tab-top" class="tab" role="tab" aria-selected="false">Top</button>',
       '      <button id="tab-hot" class="tab" role="tab" aria-selected="false">Hot</button>',
       '      <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
       '    </div>',
-      '  </div>',
 
       // NEW: visible label for the filter area
-      
+      '    <span class="filters-label" aria-hidden="true">Filters</span>',
 
       '    <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
       '      <option value="day">Day</option>',
@@ -460,9 +457,6 @@
       '      <option value="month">Month</option>',
       '    </select>',
 
-      '  <div class="calender-wrapper">',
-      '    <span id="date-hint" class="date-hint">Search threads within these dates</span>',
-      '  <div class="calender-dates">',
       '    <label class="field" style="width:auto">',
       '      <span class="label">From</span>',
       // NEW: aria-describedby so SRs read the hint
@@ -473,10 +467,9 @@
       // NEW: aria-describedby so SRs read the hint
       '      <input id="forum-to" type="date" class="community-input" aria-label="To date" aria-describedby="date-hint" style="width:auto" />',
       '    </label>',
-      '  </div>',
-      '  </div>',
 
       // NEW: concise explanatory hint
+      '    <span id="date-hint" class="date-hint">Search threads within these dates</span>',
 
       '    <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
       '    <button id="notif-btn" class="community-btn" type="button" style="margin-left:auto;position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
