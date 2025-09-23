@@ -294,6 +294,92 @@ router.get('/', async (_req, res, next) => {
 });
 
 /* ------------------------------- Threads --------------------------------- */
+
+// --- Admin: new thread form
+router.get('/threads/new', (_req, res) => {
+  const fallback = shell('New Thread', `
+<div class="card">
+  <h2>Create Thread</h2>
+  <p class="small">Tip: shop looks like <code>your-store.myshopify.com</code>.</p>
+  <form method="post" action="/admin/threads/create" class="kv" style="max-width:720px">
+    <label>Shop</label>
+    <input class="input" name="shop" required placeholder="your-store.myshopify.com">
+
+    <label>Title</label>
+    <input class="input" name="title" required maxlength="180">
+
+    <label>Body (Markdown, optional)</label>
+    <textarea class="input" name="body" rows="6" placeholder="Write details…"></textarea>
+
+    <label>Tags (comma separated)</label>
+    <input class="input" name="tags" placeholder="e.g. feature, mobile, bug">
+
+    <label>Category ID (optional)</label>
+    <input class="input" name="categoryId" placeholder="64f… objectId">
+
+    <label>Post as customer (optional)</label>
+    <input class="input" name="customerId" placeholder="Shopify customerId (numeric)">
+
+    <label></label>
+    <label style="display:flex;gap:10px;align-items:center">
+      <input type="checkbox" name="pinned"> <span class="small">Pin</span>
+      <input type="checkbox" name="locked" style="margin-left:14px"> <span class="small">Lock</span>
+    </label>
+
+    <div></div>
+    <button class="btn primary" type="submit">Create</button>
+  </form>
+  <p class="mt12"><a href="/admin/threads?status=approved">← Back to Threads</a></p>
+</div>
+  `);
+  renderOrFallback(res, 'thread-new', {}, fallback);
+});
+
+// --- Admin: create thread handler
+router.post('/threads/create', async (req, res, next) => {
+  try {
+    const { shop, title, body = '', tags = '', categoryId = '', customerId = '', pinned, locked } = req.body || {};
+
+    const errors = [];
+    if (!isLikelyShopDomain(shop)) errors.push('Invalid shop domain');
+    if (!title) errors.push('Title required');
+    if (categoryId && !isValidObjectId(categoryId)) errors.push('Invalid categoryId');
+
+    if (errors.length) return res.status(400).send(shell('Error', `
+      <div class="card"><h2>Could not create thread</h2>
+        <ul class="clean">${errors.map(e => `<li class="item">${esc(e)}</li>`).join('')}</ul>
+        <p class="mt12"><a href="/admin/threads/new">← Try again</a></p>
+      </div>`));
+
+    const cleanBody = sanitizeHtml(String(body), { allowedTags: [], allowedAttributes: {} });
+    const tagArr = String(tags)
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .slice(0, 12);
+
+    const t = await Thread.create({
+      shop: shop.trim(),
+      title: String(title).slice(0, 180),
+      body: cleanBody,
+      tags: tagArr,
+      categoryId: categoryId || null,
+      status: 'approved',                // publish immediately
+      pinned: !!pinned,
+      locked: !!locked,
+      createdAt: new Date(),
+      author: customerId
+        ? { customerId: String(customerId), displayName: '' } // impersonate a customer
+        : { customerId: null, displayName: 'Admin' }          // post as Admin/system
+    });
+
+    return res.redirect('/admin/threads/' + t._id);
+  } catch (e) {
+    next(e);
+  }
+});
+
+
 // List (default: pending) + Search (by title or exact ID)
 router.get('/threads', async (req, res, next) => {
   try {
@@ -345,6 +431,7 @@ router.get('/threads', async (req, res, next) => {
     <a class="btn" href="/admin/threads?status=pending${q ? '&q=' + encodeURIComponent(q) : ''}">Pending</a>
     <a class="btn" href="/admin/threads?status=approved${q ? '&q=' + encodeURIComponent(q) : ''}">Approved</a>
     <a class="btn" href="/admin/threads?status=rejected${q ? '&q=' + encodeURIComponent(q) : ''}">Rejected</a>
+    <a class="btn primary" href="/admin/threads/new" style="margin-left:8px">+ New Thread</a>
   </div>
 </div>
 
