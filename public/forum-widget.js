@@ -160,6 +160,22 @@
       '.filters-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}',
       '.filters-inline .community-input{min-width:220px}',
 
+      /* one-line layout for tabs + dates + bell */
+      '.controls-row{display:flex;gap:12px;align-items:flex-start}',
+
+      /* right-side dates block: label above, inputs inline */
+      '.date-block{display:flex;flex-direction:column;gap:6px;flex:1}',
+      '.date-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}',
+      '.date-inline .community-input{min-width:180px}',
+
+      /* keep tabs tight on left; bell on far right */
+      '.controls-row .tabbar{flex:0 0 auto}',
+      '.notif-wrap{margin-left:auto;position:relative}',
+
+      /* responsive: stack on narrow screens */
+      '@media (max-width:900px){.controls-row{flex-direction:column;align-items:stretch}.notif-wrap{margin-left:0}}',
+
+
 
 
       /* Stream grid (list + rail) */
@@ -462,11 +478,12 @@
       // CONTROLS (tabs + filters + bell)
       '  <div class="controls">',
 
-      // Small label above the tabs (as requested)
+      // label ABOVE the tabs (as requested)
       '    <div class="filters-label">Filters</div>',
 
-      // Tabs row + bell
-      '    <div class="controls-row" style="display:flex;gap:8px;align-items:center;position:relative">',
+      // one row: tabs | date block | bell
+      '    <div class="controls-row">',
+
       '      <div class="tabbar" role="tablist" aria-label="Sort tabs">',
       '        <button id="tab-latest" class="tab active" role="tab" aria-selected="true">Latest</button>',
       '        <button id="tab-top" class="tab" role="tab" aria-selected="false">Top</button>',
@@ -474,37 +491,34 @@
       '        <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
       '      </div>',
 
-      '      <button id="notif-btn" class="community-btn" type="button" style="margin-left:auto;position:relative">',
-      '        🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span>',
-      '      </button>',
-      '      <div id="notif-panel" class="rail-card" style="display:none;position:absolute;right:0;top:44px;max-width:380px;z-index:50"></div>',
-      '    </div>',
+      '      <div class="date-block">',
+      '        <div class="date-hint">Search threads within these dates</div>',
+      '        <div class="date-inline">',
+      '          <label class="field" style="width:auto">',
+      '            <span class="label">From</span>',
+      '            <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto" />',
+      '          </label>',
+      '          <label class="field" style="width:auto">',
+      '            <span class="label">To</span>',
+      '            <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto" />',
+      '          </label>',
+      '          <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
+      '            <option value="day">Day</option>',
+      '            <option value="week" selected>Week</option>',
+      '            <option value="month">Month</option>',
+      '          </select>',
+      '          <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
+      '        </div>',
+      '      </div>',
 
-      // Dates block — hint above the inputs
-      '    <div class="date-hint">Search threads within these dates</div>',
-      '    <div class="filters-inline">',
-      '      <label class="field" style="width:auto">',
-      '        <span class="label">From</span>',
-      '        <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto" />',
-      '      </label>',
-      '      <label class="field" style="width:auto">',
-      '        <span class="label">To</span>',
-      '        <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto" />',
-      '      </label>',
+      '      <div class="notif-wrap">',
+      '        <button id="notif-btn" class="community-btn" type="button">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
+      '        <div id="notif-panel" class="rail-card" style="display:none;position:absolute;right:0;top:44px;max-width:380px;z-index:50"></div>',
+      '      </div>',
 
-      // Period select (only visible when “Top” is active; JS already handles this)
-      '      <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
-      '        <option value="day">Day</option>',
-      '        <option value="week" selected>Week</option>',
-      '        <option value="month">Month</option>',
-      '      </select>',
-
-      '      <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
       '    </div>',
 
       '  </div>',
-
-
 
 
       // COMPOSE
