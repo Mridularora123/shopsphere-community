@@ -138,6 +138,9 @@
       '.primary{background:linear-gradient(90deg,var(--c-accent),var(--c-accent-2));color:#fff;border-color:transparent}',
       '.primary:hover{box-shadow:0 0 0 5px color-mix(in oklab,var(--c-accent) 25%,#0000)}',
       '.badge{display:inline-block;background:#eef;border:1px solid #dde;padding:2px 6px;border-radius:6px;font-size:11px;margin-left:6px}',
+      '.filters-label{font-weight:700;font-size:12px;color:var(--c-mut);margin-left:8px;margin-right:6px;text-transform:uppercase;letter-spacing:.08em}',
+      '.date-hint{color:var(--c-mut);font-size:12px;margin-left:6px}',
+
 
       /* Stream grid (list + rail) */
       '.stream{display:grid;grid-template-columns:1fr 300px;gap:16px}',
@@ -444,23 +447,35 @@
       '      <button id="tab-hot" class="tab" role="tab" aria-selected="false">Hot</button>',
       '      <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
       '    </div>',
+
+      // NEW: visible label for the filter area
+      '    <span class="filters-label" aria-hidden="true">Filters</span>',
+
       '    <select id="forum-period" class="community-input" aria-label="Top period" style="width:auto;display:none">',
       '      <option value="day">Day</option>',
       '      <option value="week" selected>Week</option>',
       '      <option value="month">Month</option>',
       '    </select>',
+
       '    <label class="field" style="width:auto">',
       '      <span class="label">From</span>',
-      '      <input id="forum-from" type="date" class="community-input" aria-label="From date" style="width:auto" />',
+      // NEW: aria-describedby so SRs read the hint
+      '      <input id="forum-from" type="date" class="community-input" aria-label="From date" aria-describedby="date-hint" style="width:auto" />',
       '    </label>',
       '    <label class="field" style="width:auto">',
       '      <span class="label">To</span>',
-      '      <input id="forum-to" type="date" class="community-input" aria-label="To date" style="width:auto" />',
+      // NEW: aria-describedby so SRs read the hint
+      '      <input id="forum-to" type="date" class="community-input" aria-label="To date" aria-describedby="date-hint" style="width:auto" />',
       '    </label>',
+
+      // NEW: concise explanatory hint
+      '    <span id="date-hint" class="date-hint">Search threads within these dates</span>',
+
       '    <button id="forum-apply" class="community-btn" type="button" aria-label="Apply filters">Apply</button>',
       '    <button id="notif-btn" class="community-btn" type="button" style="margin-left:auto;position:relative">🔔 <span id="notif-badge" class="badge" style="display:none;margin-left:6px">0</span></button>',
       '    <div id="notif-panel" class="rail-card" style="display:none;position:absolute;right:0;top:44px;max-width:380px;z-index:50"></div>',
       '  </div>',
+
 
       // COMPOSE
       '  <div id="rte-bar"></div>',
