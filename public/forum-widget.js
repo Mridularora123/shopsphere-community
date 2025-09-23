@@ -441,6 +441,7 @@
 
       // CONTROLS (tabs + filters + bell)
       '  <div class="controls">',
+      '  <div id="filter-wrapper">',
       '    <span class="filters-label" aria-hidden="true">Filters</span>',
       '    <div class="tabbar" role="tablist" aria-label="Sort tabs">',
       '      <button id="tab-latest" class="tab active" role="tab" aria-selected="true">Latest</button>',
@@ -448,6 +449,7 @@
       '      <button id="tab-hot" class="tab" role="tab" aria-selected="false">Hot</button>',
       '      <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
       '    </div>',
+      '  </div>',
 
       // NEW: visible label for the filter area
       
