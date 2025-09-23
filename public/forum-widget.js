@@ -190,6 +190,12 @@
       /* responsive stacking */
       '@media (max-width:900px){.controls-row{flex-direction:column;align-items:stretch}.notif-wrap{margin-left:0}}',
 
+      '/* Show header hint on desktop; show inline hint only on mobile */',
+      '.date-hint--desktop{display:block}',
+      '.date-hint--mobile{display:none}',
+      '@media (max-width:850px){.date-hint--desktop{display:none}.date-hint--mobile{display:block}}',
+
+
       /* desktop: already inline via your existing rules */
 
       /* mobile: stack + left-align “Search threads…” above date inputs */
@@ -509,7 +515,7 @@
       // single header line
       '    <div class="controls-head">',
       '      <div class="filters-label">Filters</div>',
-      '      <div class="date-hint">Search threads within these dates</div>',
+      '      <div class="date-hint date-hint--desktop">Search threads within these dates</div>',
       '    </div>',
 
       // one row: tabs | dates | apply | bell (all inline)
@@ -521,6 +527,8 @@
       '        <button id="tab-hot" class="tab" role="tab" aria-selected="false">Hot</button>',
       '        <button id="tab-discussed" class="tab" role="tab" aria-selected="false">Most Discussed</button>',
       '      </div>',
+
+      '      <div class="date-hint date-hint--mobile">Search threads within these dates</div>',
 
       '      <div class="date-inline">',
       '        <label class="field" style="width:auto">',
