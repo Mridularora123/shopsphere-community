@@ -458,7 +458,7 @@
       '      <option value="month">Month</option>',
       '    </select>',
 
-      '  <div class="calender-wrapper"></div>',
+      '  <div class="calender-wrapper">',
       '    <span id="date-hint" class="date-hint">Search threads within these dates</span>',
       '  <div>',
       '    <label class="field" style="width:auto">',
