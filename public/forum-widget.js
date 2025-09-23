@@ -190,6 +190,20 @@
       /* responsive stacking */
       '@media (max-width:900px){.controls-row{flex-direction:column;align-items:stretch}.notif-wrap{margin-left:0}}',
 
+      /* desktop: already inline via your existing rules */
+
+      /* mobile: stack + left-align “Search threads…” above date inputs */
+      '@media (max-width: 850px){' +
+      '  .controls-head{flex-direction:column;align-items:flex-start;gap:4px;margin-bottom:6px}' +
+      '  .controls-head .filters-label{margin:0}' +
+      '  .controls-head .date-hint{margin:0}' +
+
+      '  /* stack the row pieces; dates full width, bell at end */' +
+      '  .controls-row{flex-direction:column;align-items:stretch;gap:10px}' +
+      '  .date-inline{width:100%;gap:8px}' +
+      '  .date-inline .community-input{flex:1;min-width:0}' +
+      '  .notif-wrap{margin-left:0;align-self:flex-end}' +
+      '}',
 
 
       /* Stream grid (list + rail) */
