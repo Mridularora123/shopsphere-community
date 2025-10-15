@@ -298,6 +298,9 @@ router.get('/', async (_req, res, next) => {
 
 /* ------------------------------- Threads --------------------------------- */
 
+//<label>Post as customer (optional)</label>
+//<input class="input" name="customerId" placeholder="Shopify customerId (numeric)"></input>
+
 // --- Admin: new thread form
 router.get('/threads/new', (_req, res) => {
   const fallback = shell('New Thread', `
@@ -320,8 +323,7 @@ router.get('/threads/new', (_req, res) => {
     <label>Category ID (optional)</label>
     <input class="input" name="categoryId" placeholder="64f… objectId">
 
-    <label>Post as customer (optional)</label>
-    <input class="input" name="customerId" placeholder="Shopify customerId (numeric)">
+    
 
     <label></label>
     <label style="display:flex;gap:10px;align-items:center">
